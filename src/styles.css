@@ -115,13 +115,24 @@ body {
 }
 
 .wordmark {
+  display: flex;
+  align-items: center;
+  gap: 9px;
   font-size: 17px;
   font-weight: 680;
   letter-spacing: -0.02em;
   margin: 0;
 }
 
-.wordmark span {
+.chips {
+  height: 24px;
+  width: auto;
+  flex: 0 0 auto;
+  display: block;
+}
+
+/* Scoped to the text span so it can't reach the wrapper and mute the whole name. */
+.wordmark-text span {
   color: var(--ink-3);
   font-weight: 500;
 }

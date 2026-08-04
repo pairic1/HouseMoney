@@ -8,6 +8,7 @@ import { PaymentGrid } from './components/PaymentGrid';
 import { CellDetail } from './components/CellDetail';
 import { AffordabilityPanel } from './components/AffordabilityPanel';
 import { SavedHouses } from './components/SavedHouses';
+import { ChipMark } from './components/ChipMark';
 
 export default function App() {
   const { state, set, setCosts, setSale, setTerms, saveHouse, removeHouse, resetAll } =
@@ -58,7 +59,10 @@ export default function App() {
     <div className="app">
       <header className="masthead">
         <h1 className="wordmark">
-          House<span>Money</span>
+          <ChipMark />
+          <span className="wordmark-text">
+            House<span>Money</span>
+          </span>
         </h1>
         <p>Two things you don't control yet. Here's the whole range.</p>
       </header>

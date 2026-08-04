@@ -38,21 +38,35 @@ export function AffordabilityPanel({
           min={0}
         />
         <p className="hint" style={{ margin: 0, flex: '1 1 220px' }}>
-          The most you could pay for a house and still land at or under this number — carrying the
-          same taxes, insurance, and HOA you set above.
+          The most you could pay for the next house and still land at or under this number —
+          carrying the same taxes, insurance, and HOA you set above.
         </p>
       </div>
+
+      <p className="grid-lead">
+        Here the cells are <strong>purchase prices</strong>, not payments — the ceiling on what you
+        could buy if your current house sells for the amount on the left and you get the rate along
+        the top.
+      </p>
 
       <div className="grid-scroll">
         <table className="afford">
           <caption className="sr-only">
-            Maximum affordable purchase price by sale price (rows) and rate (columns).
+            Maximum purchase price for the next house, by what the current house sells for (rows)
+            and the rate on the new loan (columns).
           </caption>
           <thead>
             <tr>
-              <th className="corner" scope="col">
-                Sale ╲ Rate
+              <th className="corner" rowSpan={2} scope="col">
+                Your current
+                <br />
+                house sells for
               </th>
+              <th className="axis-top" colSpan={rates.length} scope="colgroup">
+                Rate on your new loan
+              </th>
+            </tr>
+            <tr>
               {rates.map((r) => (
                 <th key={r} scope="col">
                   {pct(r)}

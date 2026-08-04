@@ -3,6 +3,8 @@ import { money, moneyShort, pct } from '../lib/format';
 
 interface Props {
   grid: GridResult;
+  /** The house being bought — fixed across the whole grid. */
+  purchasePrice: number;
   target: number;
   selected: { row: number; col: number } | null;
   onSelect: (row: number, col: number) => void;
@@ -23,7 +25,7 @@ function washFor(total: number, target: number, spread: number): string {
   return `rgba(${hue}, ${alpha})`;
 }
 
-export function PaymentGrid({ grid, target, selected, onSelect }: Props) {
+export function PaymentGrid({ grid, purchasePrice, target, selected, onSelect }: Props) {
   // Scale the wash against whichever side of the target stretches further,
   // so a lopsided grid doesn't wash out the smaller arm.
   const spread = Math.max(
@@ -34,17 +36,30 @@ export function PaymentGrid({ grid, target, selected, onSelect }: Props) {
 
   return (
     <>
+      <p className="grid-lead">
+        Every cell is the monthly payment on the <strong>{money(purchasePrice)}</strong> house
+        above — if your current house sells for the amount on the left, and you get the rate along
+        the top.
+      </p>
+
       <div className="grid-scroll">
         <table className="grid">
           <caption className="sr-only">
-            Total monthly payment by sale price of your current house (rows) and mortgage rate
-            (columns).
+            Monthly payment on the {money(purchasePrice)} house being bought, by what the current
+            house sells for (rows) and the rate on the new loan (columns).
           </caption>
           <thead>
             <tr>
-              <th className="corner" scope="col">
-                Sale ╲ Rate
+              <th className="corner" rowSpan={2} scope="col">
+                Your current
+                <br />
+                house sells for
               </th>
+              <th className="axis-top" colSpan={grid.rates.length} scope="colgroup">
+                Rate on your new loan
+              </th>
+            </tr>
+            <tr>
               {grid.rates.map((r) => (
                 <th key={r} scope="col">
                   {pct(r)}

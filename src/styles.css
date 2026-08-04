@@ -385,15 +385,57 @@ table.grid td {
 
 .grid thead th.corner {
   text-align: left;
-  padding-left: 14px;
+  padding: 10px 12px 11px 14px;
+  vertical-align: bottom;
   position: sticky;
   left: 0;
   z-index: 3;
   font-family: var(--sans);
   font-size: 10px;
+  font-weight: 620;
   letter-spacing: 0.1em;
+  line-height: 1.35;
   text-transform: uppercase;
   color: var(--ink-3);
+  border-right: 1px solid var(--hairline-strong);
+}
+
+/* Names the column axis outright — "Sale ╲ Rate" left it to be guessed. */
+.grid thead th.axis-top,
+.afford thead th.axis-top {
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 620;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  text-align: center;
+  padding: 10px 6px 6px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--surface-2);
+}
+
+/* Centred, the label sits under the columns you have to scroll to reach. */
+@media (max-width: 720px) {
+  .grid thead th.axis-top,
+  .afford thead th.axis-top {
+    text-align: left;
+    padding-left: 14px;
+  }
+}
+
+.grid-lead {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-2);
+  max-width: 76ch;
+}
+
+.grid-lead strong {
+  color: var(--ink);
+  font-weight: 620;
+  font-variant-numeric: tabular-nums;
 }
 
 .grid tbody th {
@@ -864,15 +906,19 @@ table.afford tbody th {
 
 table.afford thead th.corner {
   text-align: left;
-  padding-left: 14px;
+  padding: 10px 12px 11px 14px;
+  vertical-align: bottom;
   font-family: var(--sans);
   font-size: 10px;
+  font-weight: 620;
   letter-spacing: 0.1em;
+  line-height: 1.35;
   text-transform: uppercase;
   color: var(--ink-3);
   position: sticky;
   left: 0;
   z-index: 3;
+  border-right: 1px solid var(--hairline-strong);
 }
 
 table.afford tbody tr:last-child th,

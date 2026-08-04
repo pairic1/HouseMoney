@@ -167,7 +167,8 @@ export function AssumptionsPanel({ state, set, setCosts, setSale, setTerms, onRe
           <p className="eyebrow">What the grid covers</p>
           <div className="field-grid">
             <NumberField
-              label="Sale price from"
+              label="Yours sells from"
+              sub="grid rows"
               value={state.saleLow}
               onChange={(n) => set('saleLow', n)}
               prefix="$"
@@ -175,7 +176,7 @@ export function AssumptionsPanel({ state, set, setCosts, setSale, setTerms, onRe
               min={0}
             />
             <NumberField
-              label="Sale price to"
+              label="Yours sells to"
               value={state.saleHigh}
               onChange={(n) => set('saleHigh', n)}
               prefix="$"
@@ -192,6 +193,7 @@ export function AssumptionsPanel({ state, set, setCosts, setSale, setTerms, onRe
             />
             <NumberField
               label="Rate from"
+              sub="grid columns"
               value={state.rateLow}
               onChange={(n) => set('rateLow', n)}
               suffix="%"

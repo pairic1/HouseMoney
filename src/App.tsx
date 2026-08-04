@@ -65,7 +65,7 @@ export default function App() {
 
       <div className="hero">
         <div className="price-field">
-          <label htmlFor="f-purchase">The house you're looking at</label>
+          <label htmlFor="f-purchase">The house you'd buy</label>
           <span className="dollar">$</span>
           <input
             id="f-purchase"
@@ -84,8 +84,8 @@ export default function App() {
         {viable.length > 0 ? (
           <>
             <p className="range-headline">
-              Depending on what your house sells for and where rates land, the payment comes in
-              somewhere between
+              Depending on what your <em>current</em> house sells for and where rates land, the
+              payment on it comes in somewhere between
             </p>
             <div className="range-figures">
               <span className="fig">
@@ -115,10 +115,10 @@ export default function App() {
               </div>
               <div className="spanbar-caption">
                 <span>
-                  {moneyShort(state.saleHigh)} sale at {pct(state.rateLow)}
+                  yours sells {moneyShort(state.saleHigh)} · {pct(state.rateLow)}
                 </span>
                 <span>
-                  {moneyShort(state.saleLow)} sale at {pct(state.rateHigh)}
+                  yours sells {moneyShort(state.saleLow)} · {pct(state.rateHigh)}
                 </span>
               </div>
             </div>
@@ -166,6 +166,7 @@ export default function App() {
         <p className="eyebrow">Every combination</p>
         <PaymentGrid
           grid={grid}
+          purchasePrice={state.purchasePrice}
           target={state.targetMonthly}
           selected={selected}
           onSelect={(row, col) =>

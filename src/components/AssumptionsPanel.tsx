@@ -19,7 +19,8 @@ export function AssumptionsPanel({ state, set, setCosts, setSale, setTerms, onRe
       <summary>
         Assumptions
         <span className="summary-note">
-          {money(sale.payoff)} payoff · {sale.commissionPct}% commission · {costs.taxRatePct}% tax
+          {money(sale.payoff)} payoff · {sale.commissionPct}% commission ·{' '}
+          {costs.taxMode === 'fixed' ? `${money(costs.taxAnnual)}/yr tax` : `${costs.taxRatePct}% tax`}
         </span>
       </summary>
 
@@ -83,15 +84,36 @@ export function AssumptionsPanel({ state, set, setCosts, setSale, setTerms, onRe
         <div className="group">
           <p className="eyebrow">Buying the next one</p>
           <div className="field-grid">
-            <NumberField
+            <SelectField
               label="Property tax"
-              sub="of purchase price, yearly"
-              value={costs.taxRatePct}
-              onChange={(n) => setCosts({ taxRatePct: n })}
-              suffix="%"
-              min={0}
-              max={10}
+              value={costs.taxMode}
+              options={[
+                { value: 'percent' as const, label: 'Percent of price' },
+                { value: 'fixed' as const, label: 'Fixed amount' },
+              ]}
+              onChange={(m) => setCosts({ taxMode: m })}
             />
+            {costs.taxMode === 'percent' ? (
+              <NumberField
+                label="Tax rate"
+                sub="of purchase price, yearly"
+                value={costs.taxRatePct}
+                onChange={(n) => setCosts({ taxRatePct: n })}
+                suffix="%"
+                min={0}
+                max={10}
+              />
+            ) : (
+              <NumberField
+                label="Tax bill"
+                sub="per year"
+                value={costs.taxAnnual}
+                onChange={(n) => setCosts({ taxAnnual: n })}
+                prefix="$"
+                grouped
+                min={0}
+              />
+            )}
             <NumberField
               label="Insurance"
               sub="per year"

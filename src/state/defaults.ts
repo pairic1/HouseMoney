@@ -7,6 +7,7 @@ export interface SavedHouse {
   price: number;
   /** null means "use the global assumption". */
   taxRatePct: number | null;
+  taxAnnual: number | null;
   insuranceAnnual: number | null;
   hoaMonthly: number | null;
   note: string;
@@ -38,7 +39,9 @@ export const DEFAULT_STATE: AppState = {
   purchasePrice: 650_000,
 
   costs: {
+    taxMode: 'percent',
     taxRatePct: 1.1,
+    taxAnnual: 7_000,
     insuranceAnnual: 2_000,
     hoaMonthly: 0,
   },

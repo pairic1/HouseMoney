@@ -21,7 +21,9 @@ interface Props {
 /** A house's own overrides win; anything left blank falls back to the global assumption. */
 function costsFor(h: SavedHouse, base: HouseCosts): HouseCosts {
   return {
+    taxMode: base.taxMode,
     taxRatePct: h.taxRatePct ?? base.taxRatePct,
+    taxAnnual: h.taxAnnual ?? base.taxAnnual,
     insuranceAnnual: h.insuranceAnnual ?? base.insuranceAnnual,
     hoaMonthly: h.hoaMonthly ?? base.hoaMonthly,
   };
@@ -57,7 +59,7 @@ function paymentRange(
 const blankDraft = {
   nickname: '',
   price: 650_000,
-  taxRatePct: '',
+  tax: '',
   insuranceAnnual: '',
   hoaMonthly: '',
 };
@@ -83,12 +85,18 @@ export function SavedHouses({
   };
 
   const submit = () => {
-    const optional = (s: string) => (s.trim() === '' ? null : Number(s));
+    const optional = (s: string) => {
+      const n = Number(s.replace(/[,\s$%]/g, ''));
+      return s.trim() === '' || !Number.isFinite(n) ? null : n;
+    };
+    // The tax override is entered in whichever unit the active mode uses.
+    const tax = optional(draft.tax);
     onSave({
       id: crypto.randomUUID(),
       nickname: draft.nickname.trim() || moneyShort(draft.price),
       price: draft.price,
-      taxRatePct: optional(draft.taxRatePct),
+      taxRatePct: costs.taxMode === 'percent' ? tax : null,
+      taxAnnual: costs.taxMode === 'fixed' ? tax : null,
       insuranceAnnual: optional(draft.insuranceAnnual),
       hoaMonthly: optional(draft.hoaMonthly),
       note: '',
@@ -123,7 +131,8 @@ export function SavedHouses({
                 <div className="house-id">
                   <p className="house-name">{h.nickname}</p>
                   <p className="house-meta">
-                    {money(h.price)} · {c.taxRatePct}% tax
+                    {money(h.price)} ·{' '}
+                    {c.taxMode === 'fixed' ? `${money(c.taxAnnual)}/yr tax` : `${c.taxRatePct}% tax`}
                     {c.hoaMonthly > 0 ? ` · ${money(c.hoaMonthly)} HOA` : ''}
                   </p>
                 </div>
@@ -190,18 +199,26 @@ export function SavedHouses({
             />
             <div className="field">
               <label htmlFor="house-tax">
-                Property tax<span className="sub"> · blank uses {costs.taxRatePct}%</span>
+                Property tax
+                <span className="sub">
+                  {' '}
+                  · blank uses{' '}
+                  {costs.taxMode === 'fixed' ? `${money(costs.taxAnnual)}/yr` : `${costs.taxRatePct}%`}
+                </span>
               </label>
               <div className="input-wrap">
+                {costs.taxMode === 'fixed' && <span className="affix">$</span>}
                 <input
                   id="house-tax"
                   type="text"
                   inputMode="decimal"
-                  value={draft.taxRatePct}
-                  placeholder={String(costs.taxRatePct)}
-                  onChange={(e) => setDraft({ ...draft, taxRatePct: e.target.value })}
+                  value={draft.tax}
+                  placeholder={String(
+                    costs.taxMode === 'fixed' ? costs.taxAnnual : costs.taxRatePct,
+                  )}
+                  onChange={(e) => setDraft({ ...draft, tax: e.target.value })}
                 />
-                <span className="affix">%</span>
+                {costs.taxMode === 'percent' && <span className="affix">%</span>}
               </div>
             </div>
             <div className="field">

@@ -46,6 +46,7 @@ export default function App() {
     set('purchasePrice', h.price);
     setCosts({
       taxRatePct: h.taxRatePct ?? state.costs.taxRatePct,
+      taxAnnual: h.taxAnnual ?? state.costs.taxAnnual,
       insuranceAnnual: h.insuranceAnnual ?? state.costs.insuranceAnnual,
       hoaMonthly: h.hoaMonthly ?? state.costs.hoaMonthly,
     });
@@ -223,8 +224,11 @@ export default function App() {
       <footer className="footnote">
         <p>
           Payments are principal, interest, property tax, insurance, HOA, and PMI where the down
-          payment falls under 20%. Property tax is figured on the purchase price, since that's
-          what it reassesses to. Lifetime interest assumes no extra principal.
+          payment falls under 20%.{' '}
+          {state.costs.taxMode === 'percent'
+            ? "Property tax scales with the purchase price, since that's what it reassesses to on sale."
+            : 'Property tax is held at the fixed yearly bill you entered, the same at any purchase price.'}{' '}
+          Lifetime interest assumes no extra principal.
         </p>
         <p>
           Estimates for your own planning, not a lender quote. Your actual rate, escrow, and

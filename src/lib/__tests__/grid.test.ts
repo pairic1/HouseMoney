@@ -12,7 +12,13 @@ const sale: SaleAssumptions = {
   extraSavings: 0,
 };
 
-const costs: HouseCosts = { taxRatePct: 1.1, insuranceAnnual: 2_000, hoaMonthly: 0 };
+const costs: HouseCosts = {
+  taxMode: 'percent',
+  taxRatePct: 1.1,
+  taxAnnual: 7_000,
+  insuranceAnnual: 2_000,
+  hoaMonthly: 0,
+};
 const terms: LoanTerms = { termYears: 30, pmiRatePct: 0.5, buyerClosingPct: 2.5 };
 
 describe('buildRange', () => {
@@ -85,6 +91,22 @@ describe('maxAffordablePrice', () => {
   it('returns 0 when even a trivial house blows the budget', () => {
     const tinyBudget = maxAffordablePrice(10, 0, 6.75, costs, terms);
     expect(tinyBudget).toBe(0);
+  });
+
+  it('buys more house under a fixed tax bill than a percent that scales with price', () => {
+    // At a $650k+ purchase, 1.1% runs well above a flat $4,000 bill, so the fixed
+    // mode should leave more room in the same budget.
+    const fixed: HouseCosts = { ...costs, taxMode: 'fixed', taxAnnual: 4_000 };
+    const cash = 220_000;
+    const pct = maxAffordablePrice(3_200, cash, 6.75, costs, terms);
+    const flat = maxAffordablePrice(3_200, cash, 6.75, fixed, terms);
+    expect(flat).toBeGreaterThan(pct);
+    expect(
+      computePayment(flat, cash, 6.75, fixed, terms).totalMonthly,
+    ).toBeLessThanOrEqual(3_200);
+    expect(
+      computePayment(flat + 5_000, cash, 6.75, fixed, terms).totalMonthly,
+    ).toBeGreaterThan(3_200);
   });
 
   it('stays correct across the PMI cliff', () => {

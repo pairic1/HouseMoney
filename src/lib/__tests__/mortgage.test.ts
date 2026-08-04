@@ -1,7 +1,20 @@
 import { describe, it, expect } from 'vitest';
-import { monthlyPI, pmiDropoffMonth, computePayment, type HouseCosts, type LoanTerms } from '../mortgage';
+import {
+  monthlyPI,
+  pmiDropoffMonth,
+  computePayment,
+  monthlyPropertyTax,
+  type HouseCosts,
+  type LoanTerms,
+} from '../mortgage';
 
-const noCosts: HouseCosts = { taxRatePct: 0, insuranceAnnual: 0, hoaMonthly: 0 };
+const noCosts: HouseCosts = {
+  taxMode: 'percent',
+  taxRatePct: 0,
+  taxAnnual: 0,
+  insuranceAnnual: 0,
+  hoaMonthly: 0,
+};
 const noExtras: LoanTerms = { termYears: 30, pmiRatePct: 0, buyerClosingPct: 0 };
 
 describe('monthlyPI', () => {
@@ -23,6 +36,20 @@ describe('monthlyPI', () => {
   it('returns 0 for a non-positive principal', () => {
     expect(monthlyPI(0, 6.5, 30)).toBe(0);
     expect(monthlyPI(-5000, 6.5, 30)).toBe(0);
+  });
+});
+
+describe('monthlyPropertyTax', () => {
+  it('scales with the purchase price in percent mode', () => {
+    const costs: HouseCosts = { ...noCosts, taxRatePct: 1.1 };
+    expect(monthlyPropertyTax(600_000, costs)).toBeCloseTo(550, 6);
+    expect(monthlyPropertyTax(800_000, costs)).toBeCloseTo(733.33, 2);
+  });
+
+  it('holds flat across purchase prices in fixed mode', () => {
+    const costs: HouseCosts = { ...noCosts, taxMode: 'fixed', taxAnnual: 6_000 };
+    expect(monthlyPropertyTax(600_000, costs)).toBeCloseTo(500, 6);
+    expect(monthlyPropertyTax(900_000, costs)).toBeCloseTo(500, 6);
   });
 });
 
@@ -60,12 +87,18 @@ describe('computePayment', () => {
   });
 
   it('stacks tax, insurance, and HOA on top of P&I', () => {
-    const costs: HouseCosts = { taxRatePct: 1.2, insuranceAnnual: 2400, hoaMonthly: 75 };
+    const costs: HouseCosts = { ...noCosts, taxRatePct: 1.2, insuranceAnnual: 2400, hoaMonthly: 75 };
     const r = computePayment(600_000, 200_000, 6.5, costs, noExtras);
     expect(r.propertyTax).toBeCloseTo(600, 6); // 600k * 1.2% / 12
     expect(r.insurance).toBeCloseTo(200, 6);
     expect(r.hoa).toBe(75);
     expect(r.totalMonthly).toBeCloseTo(r.principalAndInterest + 600 + 200 + 75, 6);
+  });
+
+  it('uses the fixed yearly bill when tax mode is fixed', () => {
+    const costs: HouseCosts = { ...noCosts, taxMode: 'fixed', taxRatePct: 1.2, taxAnnual: 7_200 };
+    const r = computePayment(600_000, 200_000, 6.5, costs, noExtras);
+    expect(r.propertyTax).toBeCloseTo(600, 6); // 7,200 / 12, ignoring the percent
   });
 
   it('charges PMI only above 80% LTV', () => {

@@ -4,13 +4,29 @@
 
 import { computeDownPayment } from './proceeds';
 
+export type TaxMode = 'percent' | 'fixed';
+
 export interface HouseCosts {
-  /** Annual property tax as a percent of the *purchase* price — it reassesses on sale. */
+  /**
+   * Percent mode scales tax with the purchase price, which is what happens when a
+   * sale triggers a reassessment. Fixed mode takes the county's actual annual bill —
+   * better where you already know the number, or where assessment lags the sale.
+   */
+  taxMode: TaxMode;
+  /** Annual property tax as a percent of the purchase price. Used in percent mode. */
   taxRatePct: number;
+  /** Annual property tax in dollars. Used in fixed mode. */
+  taxAnnual: number;
   /** Homeowners insurance, dollars per year. */
   insuranceAnnual: number;
   /** HOA dues, dollars per month. */
   hoaMonthly: number;
+}
+
+/** Monthly property tax under whichever mode is active. */
+export function monthlyPropertyTax(purchasePrice: number, costs: HouseCosts): number {
+  if (costs.taxMode === 'fixed') return costs.taxAnnual / 12;
+  return (purchasePrice * (costs.taxRatePct / 100)) / 12;
 }
 
 export interface LoanTerms {
@@ -98,7 +114,7 @@ export function computePayment(
   const ltv = purchasePrice > 0 ? loan / purchasePrice : 0;
 
   const principalAndInterest = monthlyPI(loan, annualRatePct, terms.termYears);
-  const propertyTax = (purchasePrice * (costs.taxRatePct / 100)) / 12;
+  const propertyTax = monthlyPropertyTax(purchasePrice, costs);
   const insurance = costs.insuranceAnnual / 12;
   const hoa = costs.hoaMonthly;
 

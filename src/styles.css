@@ -153,6 +153,63 @@ body {
   }
 }
 
+/* ---------- page nav ---------- */
+
+.app-nav {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.nav-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 13px;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: var(--ink-3);
+  border: 1px solid transparent;
+  transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease;
+}
+
+.nav-tab:hover {
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.nav-tab.active {
+  color: var(--ink);
+  background: var(--surface);
+  border-color: var(--hairline-strong);
+}
+
+.nav-label {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.nav-blurb {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+@media (max-width: 560px) {
+  .masthead {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+  }
+  .nav-tab {
+    flex: 1 1 0;
+    padding: 7px 10px;
+  }
+  .nav-blurb {
+    display: none;
+  }
+}
+
 /* ---------- section rhythm ---------- */
 
 .section {
@@ -1050,6 +1107,291 @@ table.afford tbody tr:last-child td {
 
 .footnote p {
   margin: 0 0 8px;
+}
+
+/* ---------- long-run comparison ---------- */
+
+/*
+ * Three categorical series. Validated all-pairs in both modes against these
+ * surfaces: worst CVD ΔE 9.4 dark / 9.2 light, normal-vision 20.9 / 24.0.
+ * Light-mode aqua sits at 2.82:1, just under the 3:1 floor — relieved by the
+ * direct line labels and the milestone table, which both always ship.
+ */
+:root {
+  --s-stay: #3987e5;
+  --s-sell: #d95926;
+  --s-later: #199e70;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --s-stay: #2a78d6;
+    --s-sell: #eb6834;
+    --s-later: #1baf7a;
+  }
+}
+
+.chart-wrap {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: 8px 4px 4px;
+}
+
+/* Below ~620px the axis and series labels shrink past legibility, so scroll
+   the chart rather than squeeze it — same call as the wide tables. */
+.chart-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.strategy-chart {
+  display: block;
+  width: 100%;
+  min-width: 620px;
+  height: auto;
+  overflow: visible;
+}
+
+.strategy-chart .gridline {
+  stroke: var(--hairline);
+  stroke-width: 1;
+}
+
+.strategy-chart .axis-zero {
+  stroke: var(--hairline-strong);
+  stroke-width: 1.5;
+}
+
+.strategy-chart .tick {
+  fill: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+
+.strategy-chart .series {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.strategy-chart .series-label {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 620;
+}
+
+.series.s-stay { stroke: var(--s-stay); }
+.series.s-sell { stroke: var(--s-sell); }
+.series.s-later { stroke: var(--s-later); }
+
+.series-label.s-stay { fill: var(--s-stay); }
+.series-label.s-sell { fill: var(--s-sell); }
+.series-label.s-later { fill: var(--s-later); }
+
+.strategy-chart .dot {
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+.dot.s-stay { fill: var(--s-stay); }
+.dot.s-sell { fill: var(--s-sell); }
+.dot.s-later { fill: var(--s-later); }
+
+.strategy-chart .crossover {
+  stroke: var(--ink-3);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.strategy-chart .crossover-label {
+  fill: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.strategy-chart .zero-note {
+  fill: var(--ink-3);
+  font-family: var(--sans);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.strategy-chart .crosshair {
+  stroke: var(--ink-2);
+  stroke-width: 1;
+}
+
+.chart-readout {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 14px 10px;
+  border-top: 1px solid var(--hairline);
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.readout-year {
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+
+.readout-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.readout-item strong {
+  color: var(--ink);
+  font-weight: 620;
+}
+
+.readout-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  display: inline-block;
+}
+.readout-swatch.s-stay { background: var(--s-stay); }
+.readout-swatch.s-sell { background: var(--s-sell); }
+.readout-swatch.s-later { background: var(--s-later); }
+
+.verdict-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.verdict-figures .fig {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.verdict-figures .fig-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.verdict-figures .fig-value {
+  font-size: 25px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.verdict-figures .fig-value.is-best {
+  color: var(--s-later);
+}
+
+.verdict-figures .fig-sub {
+  font-size: 11.5px;
+  color: var(--ink-3);
+  font-family: var(--mono);
+}
+
+.strategy-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 12px;
+}
+
+.strategy-card {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: 14px 16px 16px;
+}
+
+.strategy-card h3 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 620;
+  letter-spacing: -0.01em;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.strategy-card .line-item {
+  font-size: 12.5px;
+  padding: 6px 0;
+}
+
+/* ---------- planned expenses ---------- */
+
+.expense-list {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.expense-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--hairline);
+  font-size: 13px;
+}
+
+.expense-row.past-horizon {
+  opacity: 0.45;
+}
+
+.expense-year {
+  color: var(--ink-3);
+  font-size: 12px;
+  flex: 0 0 auto;
+}
+
+.expense-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.expense-where {
+  font-size: 11.5px;
+  color: var(--ink-3);
+  flex: 0 0 auto;
+}
+
+.expense-amount {
+  flex: 0 0 auto;
+  font-weight: 560;
+}
+
+.expense-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.expense-add {
+  height: 37px;
 }
 
 @media (prefers-reduced-motion: reduce) {

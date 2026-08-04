@@ -15,6 +15,11 @@ function hydrate(raw: string | null): AppState {
       sale: { ...DEFAULT_STATE.sale, ...stored.sale },
       terms: { ...DEFAULT_STATE.terms, ...stored.terms },
       savedHouses: stored.savedHouses ?? [],
+      projection: {
+        ...DEFAULT_STATE.projection,
+        ...stored.projection,
+        expenses: stored.projection?.expenses ?? [],
+      },
     };
   } catch {
     return DEFAULT_STATE;
@@ -50,6 +55,10 @@ export function useAppState() {
     setState((s) => ({ ...s, terms: { ...s.terms, ...patch } }));
   }, []);
 
+  const setProjection = useCallback((patch: Partial<AppState['projection']>) => {
+    setState((s) => ({ ...s, projection: { ...s.projection, ...patch } }));
+  }, []);
+
   const saveHouse = useCallback((house: SavedHouse) => {
     setState((s) => {
       const existing = s.savedHouses.findIndex((h) => h.id === house.id);
@@ -66,5 +75,15 @@ export function useAppState() {
 
   const resetAll = useCallback(() => setState(DEFAULT_STATE), []);
 
-  return { state, set, setCosts, setSale, setTerms, saveHouse, removeHouse, resetAll };
+  return {
+    state,
+    set,
+    setCosts,
+    setSale,
+    setTerms,
+    setProjection,
+    saveHouse,
+    removeHouse,
+    resetAll,
+  };
 }

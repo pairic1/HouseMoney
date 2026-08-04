@@ -1,5 +1,6 @@
 import type { HouseCosts, LoanTerms } from '../lib/mortgage';
 import type { SaleAssumptions } from '../lib/proceeds';
+import type { PlannedExpense } from '../lib/projection';
 
 export interface SavedHouse {
   id: string;
@@ -29,6 +30,39 @@ export interface AppState {
   rateStep: number;
 
   savedHouses: SavedHouse[];
+
+  projection: ProjectionState;
+}
+
+/**
+ * The Long Run page. Kept separate from the estimator's fields because it asks
+ * about the house you already own, which the estimator never needs to know.
+ */
+export interface ProjectionState {
+  horizonYears: number;
+  moveInYears: number;
+
+  /** The house you're in now. */
+  currentValue: number;
+  currentAppreciationPct: number;
+  currentTaxRatePct: number;
+  currentInsuranceAnnual: number;
+  currentHoaMonthly: number;
+  currentMaintenancePct: number;
+
+  currentBalance: number;
+  currentRatePct: number;
+  currentRemainingYears: number;
+
+  /** The house you'd move to, priced in today's dollars. */
+  nextAppreciationPct: number;
+  nextMaintenancePct: number;
+  rateLaterPct: number;
+
+  investmentReturnPct: number;
+  costInflationPct: number;
+
+  expenses: PlannedExpense[];
 }
 
 /**
@@ -72,4 +106,29 @@ export const DEFAULT_STATE: AppState = {
   rateStep: 0.25,
 
   savedHouses: [],
+
+  projection: {
+    horizonYears: 30,
+    moveInYears: 10,
+
+    currentValue: 700_000,
+    currentAppreciationPct: 3,
+    currentTaxRatePct: 1.1,
+    currentInsuranceAnnual: 2_000,
+    currentHoaMonthly: 0,
+    currentMaintenancePct: 1,
+
+    currentBalance: 500_000,
+    currentRatePct: 6,
+    currentRemainingYears: 28,
+
+    nextAppreciationPct: 3,
+    nextMaintenancePct: 1,
+    rateLaterPct: 6.5,
+
+    investmentReturnPct: 5,
+    costInflationPct: 3,
+
+    expenses: [],
+  },
 };

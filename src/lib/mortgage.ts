@@ -47,6 +47,30 @@ export function monthlyPI(principal: number, annualRatePct: number, termYears: n
 }
 
 /**
+ * Balance left after `monthsElapsed` payments, in closed form:
+ *   B = L(1+i)^m − P·((1+i)^m − 1)/i
+ * Exact, and avoids looping when a projection needs the balance at an arbitrary month.
+ */
+export function remainingBalance(
+  principal: number,
+  annualRatePct: number,
+  termYears: number,
+  monthsElapsed: number,
+): number {
+  if (principal <= 0) return 0;
+  const n = termYears * 12;
+  if (monthsElapsed >= n) return 0;
+  if (monthsElapsed <= 0) return principal;
+
+  const i = annualRatePct / 100 / 12;
+  const payment = monthlyPI(principal, annualRatePct, termYears);
+  if (i === 0) return Math.max(0, principal - payment * monthsElapsed);
+
+  const growth = Math.pow(1 + i, monthsElapsed);
+  return Math.max(0, principal * growth - payment * ((growth - 1) / i));
+}
+
+/**
  * Month at which the loan amortizes down to 78% of the original purchase price,
  * where PMI terminates automatically. Returns null if PMI never applied, or if
  * the loan never gets there within the term.

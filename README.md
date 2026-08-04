@@ -9,7 +9,12 @@ This shows the whole field at once.
 
 **Live: https://pairic1.github.io/HouseMoney/**
 
-## What it does
+Two pages:
+
+- **Payment Estimator** — what a given house costs per month, across every sale price and rate.
+- **Long Run** — whether to move at all: sell now, wait and move later, or stay put.
+
+## Payment Estimator
 
 - **The grid.** Sale price down one axis, rate across the other, total monthly payment in
   every cell. Blue under your budget, red over, with a contour line drawn where you cross it.
@@ -23,7 +28,26 @@ This shows the whole field at once.
   side by side with the others.
 
 The payment is principal, interest, property tax, insurance, HOA, and PMI. Property tax is
-figured on the purchase price, since that's what it reassesses to on sale.
+figured on the purchase price, since that's what it reassesses to on sale — or as a flat yearly
+bill, if you already know the number.
+
+## Long Run
+
+Moving costs roughly 8% round-trip in commission and closing before it buys you anything, so
+staying is almost always cheaper early. The question is **when the lines cross** — and whether
+they cross before you'd have moved anyway. A single endpoint total can't tell you that, because
+the ranking flips depending on when you actually leave.
+
+Each strategy runs the same monthly loop over two accounts: home equity, and a cash balance that
+housing costs are drawn from and that compounds at your investment return. Opportunity cost falls
+out of the accounting rather than being bolted on — money not tied up in a house is visibly
+earning something. Set the return to 0% and it collapses to plain cash-flow accounting.
+
+Everything is plotted against staying put, so the flat line at zero *is* staying put. Only the
+gaps between strategies carry meaning.
+
+Planned repairs are dated and attached to a specific house, so a roof due in 2030 simply doesn't
+land on a plan that sold in 2027. That asymmetry is frequently the whole argument.
 
 ## Your numbers stay yours
 

@@ -21,14 +21,17 @@ export function moneyExact(n: number): string {
   return usd2.format(n);
 }
 
-/** $850k / $1.2M — compact axis labels. */
+/** $850k / $1.2M / −$100k — compact axis labels. */
 export function moneyShort(n: number): string {
-  if (Math.abs(n) >= 1_000_000) {
-    const m = n / 1_000_000;
-    return `$${m % 1 === 0 ? m.toFixed(0) : m.toFixed(2).replace(/0$/, '')}M`;
+  // Sign goes outside the currency symbol; "$-100k" reads badly on an axis.
+  const sign = n < 0 ? '−' : '';
+  const abs = Math.abs(n);
+  if (abs >= 1_000_000) {
+    const m = abs / 1_000_000;
+    return `${sign}$${m % 1 === 0 ? m.toFixed(0) : m.toFixed(2).replace(/0$/, '')}M`;
   }
-  if (Math.abs(n) >= 1_000) return `$${Math.round(n / 1_000)}k`;
-  return money(n);
+  if (abs >= 1_000) return `${sign}$${Math.round(abs / 1_000)}k`;
+  return `${sign}${money(abs)}`;
 }
 
 /** 6.75% */

@@ -26,9 +26,9 @@ export function Compare() {
         value: p.currentValue,
         appreciationPct: p.currentAppreciationPct,
         costs: {
-          taxMode: 'percent',
+          taxMode: p.currentTaxMode,
           taxRatePct: p.currentTaxRatePct,
-          taxAnnual: 0,
+          taxAnnual: p.currentTaxAnnual,
           insuranceAnnual: p.currentInsuranceAnnual,
           hoaMonthly: p.currentHoaMonthly,
         },
@@ -310,15 +310,36 @@ export function Compare() {
                   min={0}
                   max={40}
                 />
-                <NumberField
+                <SelectField
                   label="Property tax"
-                  sub="of value, yearly"
-                  value={p.currentTaxRatePct}
-                  onChange={(n) => setProjection({ currentTaxRatePct: n })}
-                  suffix="%"
-                  min={0}
-                  max={10}
+                  value={p.currentTaxMode}
+                  options={[
+                    { value: 'percent' as const, label: 'Percent of value' },
+                    { value: 'fixed' as const, label: 'Fixed amount' },
+                  ]}
+                  onChange={(m) => setProjection({ currentTaxMode: m })}
                 />
+                {p.currentTaxMode === 'percent' ? (
+                  <NumberField
+                    label="Tax rate"
+                    sub="of value, yearly"
+                    value={p.currentTaxRatePct}
+                    onChange={(n) => setProjection({ currentTaxRatePct: n })}
+                    suffix="%"
+                    min={0}
+                    max={10}
+                  />
+                ) : (
+                  <NumberField
+                    label="Tax bill"
+                    sub="per year, today"
+                    value={p.currentTaxAnnual}
+                    onChange={(n) => setProjection({ currentTaxAnnual: n })}
+                    prefix="$"
+                    grouped
+                    min={0}
+                  />
+                )}
                 <NumberField
                   label="Insurance"
                   sub="per year"
@@ -356,6 +377,13 @@ export function Compare() {
                   max={20}
                 />
               </div>
+              {(p.currentTaxMode === 'fixed' || state.costs.taxMode === 'fixed') && (
+                <p className="hint">
+                  A fixed tax bill stays off the home's value, but still drifts up with cost
+                  inflation ({pct(p.costInflationPct, 1)}) — over {p.horizonYears} years a truly
+                  frozen bill isn't realistic. Set cost inflation to 0% if you want it held exactly.
+                </p>
+              )}
             </div>
 
             <div className="group">
@@ -378,15 +406,36 @@ export function Compare() {
                   min={0}
                   max={20}
                 />
-                <NumberField
+                <SelectField
                   label="Property tax"
-                  sub="of price, yearly"
-                  value={state.costs.taxRatePct}
-                  onChange={(n) => setCosts({ taxRatePct: n })}
-                  suffix="%"
-                  min={0}
-                  max={10}
+                  value={state.costs.taxMode}
+                  options={[
+                    { value: 'percent' as const, label: 'Percent of price' },
+                    { value: 'fixed' as const, label: 'Fixed amount' },
+                  ]}
+                  onChange={(m) => setCosts({ taxMode: m })}
                 />
+                {state.costs.taxMode === 'percent' ? (
+                  <NumberField
+                    label="Tax rate"
+                    sub="of price, yearly"
+                    value={state.costs.taxRatePct}
+                    onChange={(n) => setCosts({ taxRatePct: n })}
+                    suffix="%"
+                    min={0}
+                    max={10}
+                  />
+                ) : (
+                  <NumberField
+                    label="Tax bill"
+                    sub="per year, today"
+                    value={state.costs.taxAnnual}
+                    onChange={(n) => setCosts({ taxAnnual: n })}
+                    prefix="$"
+                    grouped
+                    min={0}
+                  />
+                )}
                 <NumberField
                   label="Upkeep"
                   sub="of value, yearly"

@@ -250,6 +250,67 @@ describe('planned expenses', () => {
   });
 });
 
+describe('property tax mode', () => {
+  const taxed = (costs: HouseCosts, extra: Partial<ProjectionInputs> = {}) =>
+    runStrategy(
+      'stay',
+      baseInput({
+        current: { ...freeHome(500_000), appreciationPct: 5, costs },
+        horizonYears: 20,
+        ...extra,
+      }),
+    ).totalEscrow;
+
+  it('rides the home value up in percent mode', () => {
+    const flat = taxed({ ...freeCosts, taxRatePct: 1 });
+    const appreciating = runStrategy(
+      'stay',
+      baseInput({
+        current: { ...freeHome(500_000), appreciationPct: 0, costs: { ...freeCosts, taxRatePct: 1 } },
+        horizonYears: 20,
+      }),
+    ).totalEscrow;
+    // Same rate, but a home worth more each year owes more each year.
+    expect(flat).toBeGreaterThan(appreciating);
+  });
+
+  it('ignores the home value entirely in fixed mode', () => {
+    const costs: HouseCosts = { ...freeCosts, taxMode: 'fixed', taxAnnual: 6_000, taxRatePct: 1 };
+    const appreciatingFast = taxed(costs);
+    const notAppreciating = runStrategy(
+      'stay',
+      baseInput({
+        current: { ...freeHome(500_000), appreciationPct: 0, costs },
+        horizonYears: 20,
+      }),
+    ).totalEscrow;
+    expect(appreciatingFast).toBeCloseTo(notAppreciating, 6);
+  });
+
+  it('holds a fixed bill exactly flat when cost inflation is zero', () => {
+    const costs: HouseCosts = { ...freeCosts, taxMode: 'fixed', taxAnnual: 6_000 };
+    const r = runStrategy(
+      'stay',
+      baseInput({
+        current: { ...freeHome(500_000), appreciationPct: 5, costs },
+        costInflationPct: 0,
+        horizonYears: 10,
+      }),
+    );
+    expect(r.totalEscrow).toBeCloseTo(6_000 * 10, 4);
+  });
+
+  it('drifts a fixed bill upward with cost inflation', () => {
+    const costs: HouseCosts = { ...freeCosts, taxMode: 'fixed', taxAnnual: 6_000 };
+    const r = runStrategy(
+      'stay',
+      baseInput({ current: { ...freeHome(500_000), costs }, costInflationPct: 3, horizonYears: 10 }),
+    );
+    expect(r.totalEscrow).toBeGreaterThan(6_000 * 10);
+    expect(r.totalEscrow).toBeLessThan(6_000 * 10 * 1.35);
+  });
+});
+
 describe('investment return', () => {
   it('rewards the strategy that keeps cash liquid', () => {
     const input = baseInput({

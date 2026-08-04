@@ -1,4 +1,4 @@
-import type { HouseCosts, LoanTerms } from '../lib/mortgage';
+import type { HouseCosts, LoanTerms, TaxMode } from '../lib/mortgage';
 import type { SaleAssumptions } from '../lib/proceeds';
 import type { PlannedExpense } from '../lib/projection';
 
@@ -45,7 +45,9 @@ export interface ProjectionState {
   /** The house you're in now. */
   currentValue: number;
   currentAppreciationPct: number;
+  currentTaxMode: TaxMode;
   currentTaxRatePct: number;
+  currentTaxAnnual: number;
   currentInsuranceAnnual: number;
   currentHoaMonthly: number;
   currentMaintenancePct: number;
@@ -113,7 +115,9 @@ export const DEFAULT_STATE: AppState = {
 
     currentValue: 700_000,
     currentAppreciationPct: 3,
+    currentTaxMode: 'percent',
     currentTaxRatePct: 1.1,
+    currentTaxAnnual: 7_000,
     currentInsuranceAnnual: 2_000,
     currentHoaMonthly: 0,
     currentMaintenancePct: 1,

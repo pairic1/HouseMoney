@@ -20,6 +20,7 @@ import {
   monthlyPropertyTax,
   pmiDropoffMonth,
   type HouseCosts,
+  type TaxMode,
 } from './mortgage';
 import { computeDownPayment, computeProceeds } from './proceeds';
 
@@ -31,8 +32,14 @@ export interface HomeProfile {
   value: number;
   appreciationPct: number;
   costs: HouseCosts;
-  /** Routine upkeep as a percent of value per year — the "1% rule". */
+  /**
+   * Routine upkeep, either as a percent of value per year — the "1% rule" — or
+   * as a flat yearly figure. The flat figure drifts with cost inflation, since
+   * it's a labor-and-materials bill, not a share of the house.
+   */
+  maintenanceMode: TaxMode;
   maintenancePct: number;
+  maintenanceAnnual: number;
 }
 
 export interface CurrentLoan {
@@ -60,11 +67,14 @@ export interface ProjectionInputs {
 
   /** Rate on a loan taken today. */
   rateNowPct: number;
-  /** Rate on a loan taken at the delayed move — the biggest unknown here. */
+  /** Rate on a loan taken at any delayed move — the biggest unknown here. */
   rateLaterPct: number;
   newLoanTermYears: number;
-  /** Years from now until the delayed move. */
-  moveInYears: number;
+  /**
+   * Years from now for each wait-then-move plan you want to see. One strategy
+   * is run per entry, so "move at 5" and "move at 10" can be read side by side.
+   */
+  moveYears: number[];
 
   investmentReturnPct: number;
   /** Drift on insurance and HOA. Property tax rides the home's value instead. */
@@ -80,6 +90,11 @@ export interface ProjectionInputs {
   expenses: PlannedExpense[];
 }
 
+/**
+ * A snapshot at the end of a year, plus what flowed out *during* that year.
+ * The flows are what let the page show interest and principal accruing year by
+ * year rather than only as one horizon-wide total.
+ */
 export interface YearPoint {
   year: number;
   monthsElapsed: number;
@@ -88,9 +103,21 @@ export interface YearPoint {
   loanBalance: number;
   equity: number;
   netPosition: number;
+
+  /** Paid during the twelve months ending here. Zero on the year-0 point. */
+  interestPaid: number;
+  principalPaid: number;
+  escrow: number;
+  maintenance: number;
+  expenses: number;
+  transactionCosts: number;
+  /** Every dollar out the door this year — the sum of the six above. */
+  cashOut: number;
 }
 
 export interface StrategyResult {
+  /** Stable per-strategy key; move plans differ only by year, so it encodes one. */
+  id: string;
   kind: StrategyKind;
   label: string;
   points: YearPoint[];
@@ -113,11 +140,26 @@ export interface StrategyResult {
   moveMonth: number | null;
 }
 
-const LABELS: Record<StrategyKind, string> = {
-  stay: 'Stay put',
-  sellNow: 'Sell now and buy',
-  stayThenMove: 'Stay, then move',
-};
+/** Which plan to run: stay put, sell immediately, or wait `moveInYears` first. */
+export interface StrategySpec {
+  kind: StrategyKind;
+  /** Only read for `stayThenMove`. */
+  moveInYears?: number;
+}
+
+function describe(spec: StrategySpec): { id: string; label: string } {
+  switch (spec.kind) {
+    case 'stay':
+      return { id: 'stay', label: 'Stay put' };
+    case 'sellNow':
+      return { id: 'sellNow', label: 'Sell now and buy' };
+    case 'stayThenMove': {
+      const y = spec.moveInYears ?? 0;
+      const rounded = Number.isInteger(y) ? String(y) : y.toFixed(1);
+      return { id: `move-${rounded}`, label: `Move in ${rounded} years` };
+    }
+  }
+}
 
 function monthlyCarryingCost(
   homeValue: number,
@@ -129,18 +171,27 @@ function monthlyCarryingCost(
     costs.taxMode === 'fixed'
       ? (costs.taxAnnual / 12) * inflationFactor
       : monthlyPropertyTax(homeValue, costs);
+  const maintenance =
+    profile.maintenanceMode === 'fixed'
+      ? (profile.maintenanceAnnual / 12) * inflationFactor
+      : (homeValue * (profile.maintenancePct / 100)) / 12;
   return {
     tax,
     insurance: (costs.insuranceAnnual / 12) * inflationFactor,
     hoa: costs.hoaMonthly * inflationFactor,
-    maintenance: (homeValue * (profile.maintenancePct / 100)) / 12,
+    maintenance,
   };
 }
 
-export function runStrategy(kind: StrategyKind, input: ProjectionInputs): StrategyResult {
+export function runStrategy(spec: StrategySpec, input: ProjectionInputs): StrategyResult {
+  const { kind } = spec;
   const horizonMonths = Math.max(1, Math.round(input.horizonYears * 12));
   const moveMonth =
-    kind === 'sellNow' ? 0 : kind === 'stayThenMove' ? Math.round(input.moveInYears * 12) : null;
+    kind === 'sellNow'
+      ? 0
+      : kind === 'stayThenMove'
+        ? Math.round((spec.moveInYears ?? 0) * 12)
+        : null;
 
   const investMonthly = input.investmentReturnPct / 100 / 12;
 
@@ -212,6 +263,17 @@ export function runStrategy(kind: StrategyKind, input: ProjectionInputs): Strate
     owning = 'next';
   }
 
+  // Flows during the year currently being walked, drained into each YearPoint.
+  const blank = () => ({
+    interestPaid: 0,
+    principalPaid: 0,
+    escrow: 0,
+    maintenance: 0,
+    expenses: 0,
+    transactionCosts: 0,
+  });
+  let yr = blank();
+
   if (moveMonth === 0) doMove(0);
 
   const points: YearPoint[] = [
@@ -223,14 +285,28 @@ export function runStrategy(kind: StrategyKind, input: ProjectionInputs): Strate
       loanBalance: balance,
       equity: homeValue - balance,
       netPosition: portfolio + homeValue - balance,
+      ...blank(),
+      cashOut: 0,
     },
   ];
+  // A sell-now move happens before month 1, so its fees belong to year one.
+  if (moveMonth === 0) yr.transactionCosts = totalTransactionCosts;
 
-  // Expenses fire in the first month of their calendar year.
-  const expenseMonth = (e: PlannedExpense) => (e.year - input.startYear) * 12 + 1;
+  /**
+   * Year points are stamped with the year the window *ends* — `points[1]` is
+   * startYear + 1 — so an expense has to fire twelve months earlier than the
+   * naive offset to land in the row bearing its own year. Anything dated this
+   * year or already past is charged immediately rather than silently dropped.
+   */
+  const expenseMonth = (e: PlannedExpense) =>
+    Math.max(1, (e.year - input.startYear - 1) * 12 + 1);
 
   for (let m = 1; m <= horizonMonths; m++) {
-    if (moveMonth !== null && moveMonth === m) doMove(m);
+    if (moveMonth !== null && moveMonth === m) {
+      const before = totalTransactionCosts;
+      doMove(m);
+      yr.transactionCosts += totalTransactionCosts - before;
+    }
 
     portfolio *= 1 + investMonthly;
 
@@ -244,6 +320,8 @@ export function runStrategy(kind: StrategyKind, input: ProjectionInputs): Strate
       portfolio -= due;
       totalInterest += interest;
       totalPrincipal += principalPaid;
+      yr.interestPaid += interest;
+      yr.principalPaid += principalPaid;
     }
 
     const inflationFactor = Math.pow(1 + input.costInflationPct / 100, (m - 1) / 12);
@@ -251,10 +329,13 @@ export function runStrategy(kind: StrategyKind, input: ProjectionInputs): Strate
     portfolio -= carry.tax + carry.insurance + carry.hoa + carry.maintenance;
     totalEscrow += carry.tax + carry.insurance + carry.hoa;
     totalMaintenance += carry.maintenance;
+    yr.escrow += carry.tax + carry.insurance + carry.hoa;
+    yr.maintenance += carry.maintenance;
 
     if (pmiMonthly > 0 && m <= pmiEndsAtMonth) {
       portfolio -= pmiMonthly;
       totalPmi += pmiMonthly;
+      yr.escrow += pmiMonthly;
     }
 
     for (const e of input.expenses) {
@@ -262,6 +343,7 @@ export function runStrategy(kind: StrategyKind, input: ProjectionInputs): Strate
       if (e.appliesTo !== 'both' && e.appliesTo !== owning) continue;
       portfolio -= e.amount;
       totalExpenses += e.amount;
+      yr.expenses += e.amount;
     }
 
     homeValue *= 1 + profile().appreciationPct / 100 / 12;
@@ -275,16 +357,27 @@ export function runStrategy(kind: StrategyKind, input: ProjectionInputs): Strate
         loanBalance: balance,
         equity: homeValue - balance,
         netPosition: portfolio + homeValue - balance,
+        ...yr,
+        cashOut:
+          yr.interestPaid +
+          yr.principalPaid +
+          yr.escrow +
+          yr.maintenance +
+          yr.expenses +
+          yr.transactionCosts,
       });
+      yr = blank();
     }
   }
 
   const last = points[points.length - 1];
   const totalHousingCash =
     totalInterest + totalPrincipal + totalEscrow + totalMaintenance + totalPmi;
+  const { id, label } = describe(spec);
   return {
+    id,
     kind,
-    label: LABELS[kind],
+    label,
     points,
     totalHousingCash,
     totalOut: totalHousingCash + totalExpenses + totalTransactionCosts,
@@ -301,11 +394,19 @@ export function runStrategy(kind: StrategyKind, input: ProjectionInputs): Strate
   };
 }
 
+/**
+ * Staying put first — it's the baseline everything else is measured against —
+ * then selling now, then one plan per move year in chronological order, so the
+ * lines read left to right in the same order they leave.
+ */
 export function runAllStrategies(input: ProjectionInputs): StrategyResult[] {
+  const moveYears = [...new Set(input.moveYears)]
+    .filter((y) => y > 0 && y <= input.horizonYears)
+    .sort((a, b) => a - b);
   return [
-    runStrategy('stay', input),
-    runStrategy('sellNow', input),
-    runStrategy('stayThenMove', input),
+    runStrategy({ kind: 'stay' }, input),
+    runStrategy({ kind: 'sellNow' }, input),
+    ...moveYears.map((y) => runStrategy({ kind: 'stayThenMove', moveInYears: y }, input)),
   ];
 }
 

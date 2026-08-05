@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 interface NumberFieldProps {
   label: string;
@@ -28,6 +28,10 @@ export function NumberField({
   min,
   max,
 }: NumberFieldProps) {
+  // Not derived from the label: both house groups on the Long Run page carry an
+  // "Insurance" and an "Upkeep", and duplicate ids would point every one of
+  // those labels at the first matching input.
+  const id = useId();
   const [raw, setRaw] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -56,14 +60,14 @@ export function NumberField({
 
   return (
     <div className="field">
-      <label htmlFor={`f-${label}`}>
+      <label htmlFor={id}>
         {label}
         {sub && <span className="sub"> · {sub}</span>}
       </label>
       <div className="input-wrap">
         {prefix && <span className="affix">{prefix}</span>}
         <input
-          id={`f-${label}`}
+          id={id}
           ref={inputRef}
           type="text"
           inputMode="decimal"
@@ -94,12 +98,13 @@ export function SelectField<T extends string | number>({
   options,
   onChange,
 }: SelectFieldProps<T>) {
+  const id = useId();
   return (
     <div className="field">
-      <label htmlFor={`s-${label}`}>{label}</label>
+      <label htmlFor={id}>{label}</label>
       <div className="input-wrap">
         <select
-          id={`s-${label}`}
+          id={id}
           value={String(value)}
           onChange={(e) => {
             const picked = options.find((o) => String(o.value) === e.target.value);

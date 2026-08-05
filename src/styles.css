@@ -1112,22 +1112,31 @@ table.afford tbody tr:last-child td {
 /* ---------- long-run comparison ---------- */
 
 /*
- * Three categorical series. Validated all-pairs in both modes against these
- * surfaces: worst CVD ΔE 9.4 dark / 9.2 light, normal-vision 20.9 / 24.0.
+ * Four categorical series: selling now, plus up to three wait-then-move plans.
+ * Validated all-pairs under protanopia, deuteranopia and tritanopia against
+ * these surfaces — worst CVD ΔE 7.2 dark / 11.2 light, normal-vision 19.6 /
+ * 21.4. Blue is deliberately absent: it collides with the aqua under tritan
+ * (ΔE 2.1) and is spoken for by the ahead/behind encoding below.
  * Light-mode aqua sits at 2.82:1, just under the 3:1 floor — relieved by the
  * direct line labels and the milestone table, which both always ship.
+ *
+ * Staying put is the baseline, not a series, so it gets a neutral swatch.
  */
 :root {
-  --s-stay: #3987e5;
+  --s-stay: #6b7688;
   --s-sell: #d95926;
-  --s-later: #199e70;
+  --s-move-1: #199e70;
+  --s-move-2: #e563b4;
+  --s-move-3: #a07cf0;
 }
 
 @media (prefers-color-scheme: light) {
   :root {
-    --s-stay: #2a78d6;
+    --s-stay: #838d9d;
     --s-sell: #eb6834;
-    --s-later: #1baf7a;
+    --s-move-1: #1baf7a;
+    --s-move-2: #c9358f;
+    --s-move-3: #7b4fd6;
   }
 }
 
@@ -1182,13 +1191,44 @@ table.afford tbody tr:last-child td {
   font-weight: 620;
 }
 
+/* Before its move date a plan is identical to staying put, so its line lies on
+   the baseline. Dashing that stretch says "nothing has happened yet" instead of
+   letting it read as the baseline itself. */
+.strategy-chart .series.pending {
+  stroke-dasharray: 2 5;
+  stroke-width: 1.5;
+  opacity: 0.75;
+}
+
 .series.s-stay { stroke: var(--s-stay); }
 .series.s-sell { stroke: var(--s-sell); }
-.series.s-later { stroke: var(--s-later); }
+.series.s-move-1 { stroke: var(--s-move-1); }
+.series.s-move-2 { stroke: var(--s-move-2); }
+.series.s-move-3 { stroke: var(--s-move-3); }
 
 .series-label.s-stay { fill: var(--s-stay); }
 .series-label.s-sell { fill: var(--s-sell); }
-.series-label.s-later { fill: var(--s-later); }
+.series-label.s-move-1 { fill: var(--s-move-1); }
+.series-label.s-move-2 { fill: var(--s-move-2); }
+.series-label.s-move-3 { fill: var(--s-move-3); }
+
+.strategy-chart .move-mark {
+  stroke-width: 2;
+}
+.move-mark.s-sell { stroke: var(--s-sell); }
+.move-mark.s-move-1 { stroke: var(--s-move-1); }
+.move-mark.s-move-2 { stroke: var(--s-move-2); }
+.move-mark.s-move-3 { stroke: var(--s-move-3); }
+
+.strategy-chart .move-label {
+  font-family: var(--sans);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+}
+.move-label.s-sell { fill: var(--s-sell); }
+.move-label.s-move-1 { fill: var(--s-move-1); }
+.move-label.s-move-2 { fill: var(--s-move-2); }
+.move-label.s-move-3 { fill: var(--s-move-3); }
 
 .strategy-chart .dot {
   stroke: var(--surface);
@@ -1196,7 +1236,9 @@ table.afford tbody tr:last-child td {
 }
 .dot.s-stay { fill: var(--s-stay); }
 .dot.s-sell { fill: var(--s-sell); }
-.dot.s-later { fill: var(--s-later); }
+.dot.s-move-1 { fill: var(--s-move-1); }
+.dot.s-move-2 { fill: var(--s-move-2); }
+.dot.s-move-3 { fill: var(--s-move-3); }
 
 .strategy-chart .crossover {
   stroke: var(--ink-3);
@@ -1263,7 +1305,31 @@ table.afford tbody tr:last-child td {
 }
 .readout-swatch.s-stay { background: var(--s-stay); }
 .readout-swatch.s-sell { background: var(--s-sell); }
-.readout-swatch.s-later { background: var(--s-later); }
+.readout-swatch.s-move-1 { background: var(--s-move-1); }
+.readout-swatch.s-move-2 { background: var(--s-move-2); }
+.readout-swatch.s-move-3 { background: var(--s-move-3); }
+
+/*
+ * Sign, said three ways at once — glyph, color, and the words "ahead"/"behind".
+ * Colour alone previously meant "best", which is a different claim entirely and
+ * read as if it meant positive.
+ */
+.delta {
+  white-space: nowrap;
+}
+
+.delta.is-ahead {
+  color: var(--under-solid);
+}
+
+.delta.is-behind {
+  color: var(--over-solid);
+}
+
+.readout-item .is-same {
+  color: var(--ink-3);
+  font-weight: 500;
+}
 
 .verdict-figures {
   display: grid;
@@ -1295,8 +1361,9 @@ table.afford tbody tr:last-child td {
   line-height: 1.1;
 }
 
-.verdict-figures .fig-value.is-best {
-  color: var(--s-later);
+.verdict-figures .fig-value .delta {
+  font-size: inherit;
+  font-weight: inherit;
 }
 
 .verdict-figures .fig-sub {
@@ -1333,6 +1400,108 @@ table.afford tbody tr:last-child td {
 .strategy-card .line-item {
   font-size: 12.5px;
   padding: 6px 0;
+}
+
+/* ---------- move plans ---------- */
+
+.move-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+
+.move-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--hairline);
+  font-size: 13px;
+}
+
+.move-row:last-child {
+  border-bottom: 0;
+}
+
+.move-row.empty {
+  color: var(--ink-3);
+  font-size: 12.5px;
+}
+
+.move-when {
+  flex: 1;
+}
+
+.move-when strong {
+  font-weight: 620;
+}
+
+.move-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.move-form .field {
+  max-width: 210px;
+}
+
+/* ---------- year-by-year detail ---------- */
+
+.strategy-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.strategy-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.strategy-tab:hover {
+  color: var(--ink);
+  border-color: var(--hairline-strong);
+}
+
+.strategy-tab.is-active {
+  color: var(--ink);
+  background: var(--raised);
+  border-color: var(--hairline-strong);
+  font-weight: 620;
+}
+
+.year-table {
+  font-size: 12px;
+}
+
+.year-table td,
+.year-table th {
+  white-space: nowrap;
+}
+
+.year-table .emph {
+  font-weight: 620;
+  color: var(--ink);
+}
+
+/* The year a plan sells and rebuys: the loan resets, so interest jumps back to
+   the top of a fresh amortization schedule. Worth pointing at. */
+.year-table .is-move-year td,
+.year-table .is-move-year th {
+  background: var(--raised);
 }
 
 /* ---------- planned expenses ---------- */

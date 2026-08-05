@@ -4,9 +4,15 @@ import { money, moneyShort } from '../lib/format';
 export interface ChartSeries {
   key: string;
   label: string;
-  /** One of the s-stay / s-sell / s-later palette classes. */
+  /** One of the categorical palette classes in styles.css. */
   className: string;
   values: number[];
+  /**
+   * Year the plan stops being identical to the baseline — its move date. Before
+   * it the line lies exactly on zero, which otherwise reads as the baseline
+   * itself, so that stretch is drawn dashed and the move date is marked.
+   */
+  divergesAtYear?: number;
 }
 
 interface Props {
@@ -115,6 +121,30 @@ export function StrategyChart({ years, series, crossings, zeroNote }: Props) {
           {zeroNote}
         </text>
 
+        {/* Each plan's move date. Until it arrives the plan *is* the baseline,
+            so without this the flat run reads as the staying-put line. */}
+        {series
+          .filter((s) => s.divergesAtYear !== undefined && s.divergesAtYear > 0)
+          .map((s) => (
+            <g key={`move-${s.key}`}>
+              <line
+                className={`move-mark ${s.className}`}
+                x1={x(s.divergesAtYear!)}
+                x2={x(s.divergesAtYear!)}
+                y1={y(0) - 13}
+                y2={y(0) + 13}
+              />
+              <text
+                className={`move-label ${s.className}`}
+                x={x(s.divergesAtYear!)}
+                y={y(0) + 25}
+                textAnchor="middle"
+              >
+                moves
+              </text>
+            </g>
+          ))}
+
         {xTicks.map((t) => (
           <text key={t} className="tick" x={x(t)} y={H - 12} textAnchor="middle">
             {t === 0 ? 'now' : `${t}y`}
@@ -137,15 +167,29 @@ export function StrategyChart({ years, series, crossings, zeroNote }: Props) {
           </g>
         ))}
 
-        {series.map((s) => (
-          <path
-            key={s.key}
-            className={`series ${s.className}`}
-            d={s.values
-              .map((v, k) => `${k === 0 ? 'M' : 'L'}${x(years[k]).toFixed(2)},${y(v).toFixed(2)}`)
-              .join(' ')}
-          />
-        ))}
+        {series.map((s) => {
+          const path = (from: number, to: number) =>
+            s.values
+              .slice(from, to)
+              .map(
+                (v, k) =>
+                  `${k === 0 ? 'M' : 'L'}${x(years[from + k]).toFixed(2)},${y(v).toFixed(2)}`,
+              )
+              .join(' ');
+          // Split at the move: dashed while the plan is still just staying put.
+          const split =
+            s.divergesAtYear === undefined
+              ? 0
+              : years.findIndex((yr) => yr >= s.divergesAtYear!);
+          return (
+            <g key={s.key}>
+              {split > 0 && (
+                <path className={`series pending ${s.className}`} d={path(0, split + 1)} />
+              )}
+              <path className={`series ${s.className}`} d={path(Math.max(0, split), s.values.length)} />
+            </g>
+          );
+        })}
 
         {/* Direct labels, so identity never rests on color alone. */}
         {series.map((s, i) => (
@@ -191,16 +235,26 @@ export function StrategyChart({ years, series, crossings, zeroNote }: Props) {
               ? 'Today'
               : `Year ${Math.round(years[hoverIdx])}`}
         </span>
+        <span className="readout-item">
+          <span className="readout-swatch s-stay" />
+          {zeroNote}
+          <strong className="num">baseline</strong>
+        </span>
         {series.map((s) => {
           const v = s.values[hoverIdx ?? s.values.length - 1];
+          const year = years[hoverIdx ?? years.length - 1];
+          const moved = s.divergesAtYear === undefined || year >= s.divergesAtYear;
           return (
             <span key={s.key} className="readout-item">
               <span className={`readout-swatch ${s.className}`} />
               {s.label}
-              <strong className="num">
-                {v >= 0 ? '+' : '−'}
-                {money(Math.abs(v))}
-              </strong>
+              {moved ? (
+                <strong className={`num ${v >= 0 ? 'is-ahead' : 'is-behind'}`}>
+                  {v >= 0 ? '▲' : '▼'} {money(Math.abs(v))} {v >= 0 ? 'ahead' : 'behind'}
+                </strong>
+              ) : (
+                <strong className="num is-same">hasn't moved yet</strong>
+              )}
             </span>
           );
         })}

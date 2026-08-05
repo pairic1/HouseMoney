@@ -3,6 +3,21 @@ import { DEFAULT_STATE, type AppState, type SavedHouse } from './defaults';
 
 const STORAGE_KEY = 'housemoney.v1';
 
+/**
+ * The page used to compare exactly one wait-then-move plan. Anyone who saved a
+ * `moveInYears` keeps that timing as their first plan rather than being reset
+ * to the placeholder pair.
+ */
+function migrateMoveYears(stored: unknown): number[] {
+  const p = stored as { moveYears?: unknown; moveInYears?: unknown } | undefined;
+  if (Array.isArray(p?.moveYears)) {
+    const clean = p.moveYears.filter((y): y is number => typeof y === 'number' && y > 0);
+    if (clean.length) return clean;
+  }
+  if (typeof p?.moveInYears === 'number' && p.moveInYears > 0) return [p.moveInYears];
+  return DEFAULT_STATE.projection.moveYears;
+}
+
 /** Merge stored values over defaults so a new field never arrives undefined. */
 function hydrate(raw: string | null): AppState {
   if (!raw) return DEFAULT_STATE;
@@ -18,6 +33,7 @@ function hydrate(raw: string | null): AppState {
       projection: {
         ...DEFAULT_STATE.projection,
         ...stored.projection,
+        moveYears: migrateMoveYears(stored.projection),
         expenses: stored.projection?.expenses ?? [],
       },
     };

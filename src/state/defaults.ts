@@ -40,7 +40,8 @@ export interface AppState {
  */
 export interface ProjectionState {
   horizonYears: number;
-  moveInYears: number;
+  /** One wait-then-move plan per entry, so several timings plot side by side. */
+  moveYears: number[];
 
   /** The house you're in now. */
   currentValue: number;
@@ -50,7 +51,9 @@ export interface ProjectionState {
   currentTaxAnnual: number;
   currentInsuranceAnnual: number;
   currentHoaMonthly: number;
+  currentMaintenanceMode: TaxMode;
   currentMaintenancePct: number;
+  currentMaintenanceAnnual: number;
 
   currentBalance: number;
   currentRatePct: number;
@@ -58,7 +61,9 @@ export interface ProjectionState {
 
   /** The house you'd move to, priced in today's dollars. */
   nextAppreciationPct: number;
+  nextMaintenanceMode: TaxMode;
   nextMaintenancePct: number;
+  nextMaintenanceAnnual: number;
   rateLaterPct: number;
 
   investmentReturnPct: number;
@@ -111,7 +116,7 @@ export const DEFAULT_STATE: AppState = {
 
   projection: {
     horizonYears: 30,
-    moveInYears: 10,
+    moveYears: [5, 10],
 
     currentValue: 700_000,
     currentAppreciationPct: 3,
@@ -120,14 +125,18 @@ export const DEFAULT_STATE: AppState = {
     currentTaxAnnual: 7_000,
     currentInsuranceAnnual: 2_000,
     currentHoaMonthly: 0,
+    currentMaintenanceMode: 'percent',
     currentMaintenancePct: 1,
+    currentMaintenanceAnnual: 7_000,
 
     currentBalance: 500_000,
     currentRatePct: 6,
     currentRemainingYears: 28,
 
     nextAppreciationPct: 3,
+    nextMaintenanceMode: 'percent',
     nextMaintenancePct: 1,
+    nextMaintenanceAnnual: 6_500,
     rateLaterPct: 6.5,
 
     investmentReturnPct: 5,

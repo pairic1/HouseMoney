@@ -62,6 +62,8 @@ export interface ProjectionState {
   /** What this house has already cost, from the day you bought it. */
   historyEnabled: boolean;
   purchaseYear: number;
+  /** 1–12. Buying in October rather than January is nearly a year of drift. */
+  purchaseMonth: number;
   purchasePrice: number;
   originalLoan: number;
   originalRatePct: number;
@@ -143,13 +145,16 @@ export const DEFAULT_STATE: AppState = {
     currentRatePct: 6,
     currentRemainingYears: 28,
 
-    historyEnabled: false,
+    // The whole time you've owned the place is the honest default; measuring
+    // from today is the comparison, reachable from the toggle on the page.
+    historyEnabled: true,
     purchaseYear: 2019,
+    purchaseMonth: 6,
     purchasePrice: 450_000,
     originalLoan: 400_000,
     originalRatePct: 4.5,
     originalTermYears: 30,
-    totalsView: 'today',
+    totalsView: 'purchase',
 
     nextAppreciationPct: 3,
     nextMaintenanceMode: 'percent',

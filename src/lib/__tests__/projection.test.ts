@@ -394,6 +394,7 @@ describe('history since purchase', () => {
       currentLoan: { balance: balanceToday, ratePct: 5, remainingYears: 22 },
       history: {
         purchaseYear: 2018,
+        purchaseMonth: 1,
         purchasePrice: 350_000,
         originalLoan: 320_000,
         originalRatePct: 5,
@@ -509,6 +510,120 @@ describe('history since purchase', () => {
   });
 });
 
+describe('history — the purchase month', () => {
+  // Today is August 2026 in these, so a January buyer has seven months more
+  // history than an August buyer of the same year.
+  const bought = (purchaseYear: number, purchaseMonth: number) =>
+    baseInput({
+      startYear: 2026,
+      startMonth: 8,
+      current: freeHome(500_000),
+      currentLoan: { balance: 300_000, ratePct: 5, remainingYears: 22 },
+      history: {
+        purchaseYear,
+        purchaseMonth,
+        purchasePrice: 350_000,
+        originalLoan: 320_000,
+        originalRatePct: 5,
+        originalTermYears: 30,
+      },
+    });
+
+  it('counts months, not whole years', () => {
+    expect(runHistory(bought(2019, 1))!.yearsOwned).toBeCloseTo(91 / 12, 6);
+    expect(runHistory(bought(2019, 10))!.yearsOwned).toBeCloseTo(82 / 12, 6);
+    expect(runHistory(bought(2019, 8))!.yearsOwned).toBe(7);
+  });
+
+  it('charges a January buyer more than an October buyer of the same year', () => {
+    const jan = runHistory(bought(2019, 1))!;
+    const oct = runHistory(bought(2019, 10))!;
+    expect(jan.totalInterest).toBeGreaterThan(oct.totalInterest);
+    expect(jan.totalOut).toBeGreaterThan(oct.totalOut);
+  });
+
+  it('closes every window on today’s month, leaving the stub oldest', () => {
+    const h = runHistory(bought(2019, 10))!; // 82 months: a 10-month stub, then 6 years
+    const spans = h.points.slice(1).map((pt, k) => pt.monthsElapsed - h.points[k].monthsElapsed);
+    expect(spans[0]).toBe(10);
+    expect(spans.slice(1)).toEqual([12, 12, 12, 12, 12, 12]);
+    expect(h.points[h.points.length - 1].monthsElapsed).toBe(0);
+  });
+
+  it('stamps each window with the calendar year it ends in', () => {
+    const h = runHistory(bought(2019, 10))!;
+    expect(h.points.map((pt) => pt.year)).toEqual([
+      2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026,
+    ]);
+  });
+
+  it('still lands on today’s value and balance exactly, mid-year purchase or not', () => {
+    for (const month of [1, 4, 8, 10, 12]) {
+      const h = runHistory(bought(2019, month))!;
+      const today = h.points[h.points.length - 1];
+      expect(today.homeValue).toBeCloseTo(500_000, 6);
+      expect(today.loanBalance).toBeCloseTo(300_000, 6);
+    }
+  });
+
+  it('puts an expense in the window bearing its year', () => {
+    const reno = {
+      id: 'k1',
+      label: 'Kitchen',
+      year: 2022,
+      amount: 60_000,
+      appliesTo: 'current' as const,
+    };
+    const h = runHistory({ ...bought(2019, 10), expenses: [reno] })!;
+    const charged = h.points.filter((pt) => pt.expenses > 0 && pt.year !== 2020);
+    expect(charged).toHaveLength(1);
+    expect(charged[0].year).toBe(2022);
+    expect(h.totalExpenses).toBe(60_000);
+  });
+
+  it('attaches an expense dated before the oldest window to that window', () => {
+    // Bought October 2019, so the first window is stamped 2020 — a 2019 project
+    // has nowhere else to go and must not vanish.
+    const early = {
+      id: 'e1',
+      label: 'Fence',
+      year: 2019,
+      amount: 5_000,
+      appliesTo: 'current' as const,
+    };
+    const h = runHistory({ ...bought(2019, 10), expenses: [early] })!;
+    expect(h.totalExpenses).toBe(5_000);
+    expect(h.points[1].expenses).toBeGreaterThanOrEqual(5_000);
+  });
+
+  it('works for someone who moved in only a few months ago', () => {
+    const h = runHistory(bought(2026, 3))!;
+    expect(h.yearsOwned).toBeCloseTo(5 / 12, 6);
+    expect(h.points).toHaveLength(2);
+    expect(h.points[1].monthsElapsed).toBe(0);
+  });
+
+  it('returns nothing for a purchase this month or in the future', () => {
+    expect(runHistory(bought(2026, 8))).toBeNull();
+    expect(runHistory(bought(2026, 12))).toBeNull();
+  });
+
+  it('still charges a past expense when history is set but too short to walk', () => {
+    // No history walk to absorb it, so the forward run has to — otherwise the
+    // money would fall between the two and disappear.
+    const past = {
+      id: 'p1',
+      label: 'Deck',
+      year: 2025,
+      amount: 12_000,
+      appliesTo: 'current' as const,
+    };
+    const input = { ...bought(2026, 8), expenses: [past] };
+    expect(runHistory(input)).toBeNull();
+    expect(runStrategy({ kind: 'stay' }, input).totalExpenses).toBe(12_000);
+  });
+});
+
 /**
  * The reason it is safe to show history at all: it is the same money for every
  * plan, so it can move the totals without moving the decision.
@@ -524,6 +639,7 @@ describe('history shifts every plan equally', () => {
     horizonYears: 30,
     history: {
       purchaseYear: 2018,
+      purchaseMonth: 1,
       purchasePrice: 350_000,
       originalLoan: 320_000,
       originalRatePct: 5,

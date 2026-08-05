@@ -6,14 +6,14 @@ import {
   type ProjectionInputs,
   type StrategyResult,
 } from '../lib/projection';
-import { money, moneyShort, pct } from '../lib/format';
+import { money, moneyShort, monthYear, pct } from '../lib/format';
 import { useAppState } from '../state/useAppState';
 import { StrategyChart } from '../components/StrategyChart';
 import { PlannedExpenses } from '../components/PlannedExpenses';
 import { MovePlans } from '../components/MovePlans';
 import { YearByYear } from '../components/YearByYear';
 import { HistorySummary } from '../components/HistorySummary';
-import { NumberField, SelectField } from '../components/inputs';
+import { MonthField, NumberField, SelectField } from '../components/inputs';
 
 /**
  * Staying put is the baseline rather than a series, so it gets the neutral
@@ -41,11 +41,14 @@ function Delta({ value, className = '' }: { value: number; className?: string })
 export function Compare() {
   const { state, set, setProjection, setCosts } = useAppState();
   const p = state.projection;
-  const startYear = new Date().getFullYear();
+  const now = new Date();
+  const startYear = now.getFullYear();
+  const startMonth = now.getMonth() + 1;
 
   const input: ProjectionInputs = useMemo(
     () => ({
       startYear,
+      startMonth,
       horizonYears: p.horizonYears,
       current: {
         value: p.currentValue,
@@ -83,6 +86,7 @@ export function Compare() {
       history: p.historyEnabled
         ? {
             purchaseYear: p.purchaseYear,
+            purchaseMonth: p.purchaseMonth,
             purchasePrice: p.purchasePrice,
             originalLoan: p.originalLoan,
             originalRatePct: p.originalRatePct,
@@ -96,7 +100,7 @@ export function Compare() {
       cashHeldBack: state.sale.cashHeldBack,
       expenses: p.expenses,
     }),
-    [p, state, startYear],
+    [p, state, startYear, startMonth],
   );
 
   const history = useMemo(() => runHistory(input), [input]);
@@ -299,6 +303,8 @@ export function Compare() {
           <p className="eyebrow">Since you bought this house</p>
           <HistorySummary
             history={history}
+            purchaseYear={p.purchaseYear}
+            purchaseMonth={p.purchaseMonth}
             purchasePrice={p.purchasePrice}
             currentValue={p.currentValue}
             enteredOriginalLoan={p.originalLoan}
@@ -315,30 +321,38 @@ export function Compare() {
             <div className="view-toggle" role="group" aria-label="Period to total up">
               <button
                 type="button"
+                className={`view-tab${fullTotals ? ' is-active' : ''}`}
+                aria-pressed={fullTotals}
+                onClick={() => setProjection({ totalsView: 'purchase' })}
+              >
+                Since {monthYear(p.purchaseYear, p.purchaseMonth, true)}
+              </button>
+              <button
+                type="button"
                 className={`view-tab${fullTotals ? '' : ' is-active'}`}
                 aria-pressed={!fullTotals}
                 onClick={() => setProjection({ totalsView: 'today' })}
               >
                 From today
               </button>
-              <button
-                type="button"
-                className={`view-tab${fullTotals ? ' is-active' : ''}`}
-                aria-pressed={fullTotals}
-                onClick={() => setProjection({ totalsView: 'purchase' })}
-              >
-                Since {p.purchaseYear}
-              </button>
             </div>
           )}
         </div>
-        {fullTotals && (
-          <p className="grid-lead">
-            Every card now carries the {money(history!.totalOut)} this house has already taken, on
-            top of what's still ahead. The same amount lands on all of them, so the gaps — and the
-            answer — are untouched.
-          </p>
-        )}
+        {showHistory &&
+          (fullTotals ? (
+            <p className="grid-lead">
+              The whole time you've owned the place: every card carries the{' '}
+              {money(history!.totalOut)} this house has already taken, on top of what's still ahead.
+              The same amount lands on all of them, so the gaps — and the answer — are untouched.
+              Switch to <em>From today</em> to drop the past and see only what's still to come.
+            </p>
+          ) : (
+            <p className="grid-lead">
+              Forward only — the {money(history!.totalOut)} already spent here is set aside. Useful
+              for seeing what's still ahead of you, though it's the same subtraction on every plan,
+              so nothing about the ranking changes.
+            </p>
+          ))}
         <div className="strategy-cards">
           {results.map((r, i) => (
             <div className="strategy-card" key={r.id}>
@@ -347,7 +361,9 @@ export function Compare() {
               </h3>
               {fullTotals && (
                 <div className="line-item">
-                  <span className="k">Down payment, {p.purchaseYear}</span>
+                  <span className="k">
+                    Down payment, {monthYear(p.purchaseYear, p.purchaseMonth, true)}
+                  </span>
                   <span className="v num">{money(history!.downPayment)}</span>
                 </div>
               )}
@@ -388,7 +404,7 @@ export function Compare() {
               <div className="line-item total-row">
                 <span className="k">
                   {fullTotals
-                    ? `Total out since ${p.purchaseYear}`
+                    ? `Total out since ${monthYear(p.purchaseYear, p.purchaseMonth, true)}`
                     : `Total out over ${p.horizonYears} years`}
                 </span>
                 <span className="v num">
@@ -571,19 +587,22 @@ export function Compare() {
                   label="Count the years you've owned it"
                   value={p.historyEnabled ? 'yes' : 'no'}
                   options={[
-                    { value: 'no', label: 'No — start from today' },
-                    { value: 'yes', label: 'Yes — start from purchase' },
+                    { value: 'yes', label: 'Yes — the whole time' },
+                    { value: 'no', label: "No — I don't have the numbers" },
                   ]}
                   onChange={(v) => setProjection({ historyEnabled: v === 'yes' })}
                 />
                 {p.historyEnabled && (
                   <>
-                    <NumberField
-                      label="Year you bought"
-                      value={p.purchaseYear}
-                      onChange={(n) => setProjection({ purchaseYear: n })}
-                      min={1950}
-                      max={startYear}
+                    <MonthField
+                      label="When you moved in"
+                      year={p.purchaseYear}
+                      month={p.purchaseMonth}
+                      onChange={(purchaseYear, purchaseMonth) =>
+                        setProjection({ purchaseYear, purchaseMonth })
+                      }
+                      maxYear={startYear}
+                      maxMonth={startMonth}
                     />
                     <NumberField
                       label="What you paid"
@@ -624,20 +643,36 @@ export function Compare() {
               <p className="hint">
                 {p.historyEnabled ? (
                   <>
-                    Date a repair or renovation to a past year and it lands here instead of ahead of
-                    you. The home's value walks from what you paid to what it's worth now, so
-                    whatever a project actually added is already in that climb — the spend is
-                    charged, the value is credited, and neither is guessed at.
+                    {!showHistory ? (
+                      <>
+                        {monthYear(p.purchaseYear, p.purchaseMonth)} isn't far enough back to have a
+                        history yet — pick a month at least one before this one and it'll appear.
+                      </>
+                    ) : (
+                      <>
+                        The month matters: buying in {monthYear(p.purchaseYear, p.purchaseMonth)}{' '}
+                        rather than January {p.purchaseYear} moves every year boundary with it.
+                        Ownership years are counted back from today, so the oldest row is the short
+                        one — the stretch between moving in and the first anniversary of this month.
+                      </>
+                    )}
                   </>
                 ) : (
                   <>
-                    Off by default: past money can't change what you should do next, so the decision
-                    doesn't need it. Turn it on to see what this house has actually taken — and to
-                    let a renovation you've already paid for count against the value it bought,
-                    rather than as pure cost.
+                    Everything will be measured from today instead. The decision doesn't need the
+                    past — it's the same money whichever way you go — but without it a renovation
+                    you've already paid for can only ever look like pure cost.
                   </>
                 )}
               </p>
+              {p.historyEnabled && (
+                <p className="hint">
+                  Date a repair or renovation to a year you've owned the place and it lands there
+                  instead of ahead of you. The home's value walks from what you paid to what it's
+                  worth now, so whatever a project actually added is already in that climb — the
+                  spend is charged, the value is credited, and neither is guessed at.
+                </p>
+              )}
             </div>
 
             <div className="group">

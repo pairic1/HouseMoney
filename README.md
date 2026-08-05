@@ -62,7 +62,13 @@ still drift with cost inflation; set that to 0% to freeze them exactly.
 
 ### Since you bought
 
-Optionally the whole picture, from the day you bought the house you're in. The home's value walks
+The default frame is the whole time you've owned the house you're in; measuring from today is the
+comparison, one click away. Pick the **month and year** you moved in — buying in October rather
+than January is nearly a year of drift, and it moves every year boundary with it. Ownership years
+are counted back from today, so the oldest row is the short one and every window closes on the
+same month the forward windows do.
+
+The home's value walks
 from what you paid to what it's worth today, and today's mortgage balance is amortized *backwards*
 to reconstruct the loan you started with — so the join at today is exact, and the reconstruction
 doubles as a check on the original terms.

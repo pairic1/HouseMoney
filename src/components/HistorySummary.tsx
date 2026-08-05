@@ -1,8 +1,10 @@
 import type { HistoryResult } from '../lib/projection';
-import { money, pct } from '../lib/format';
+import { money, monthsToYears, monthYear, pct } from '../lib/format';
 
 interface Props {
   history: HistoryResult;
+  purchaseYear: number;
+  purchaseMonth: number;
   purchasePrice: number;
   currentValue: number;
   enteredOriginalLoan: number;
@@ -13,6 +15,8 @@ interface Props {
 
 export function HistorySummary({
   history: h,
+  purchaseYear,
+  purchaseMonth,
   purchasePrice,
   currentValue,
   enteredOriginalLoan,
@@ -21,13 +25,14 @@ export function HistorySummary({
 }: Props) {
   const valueGained = currentValue - purchasePrice;
   const loanGap = h.reconstructedOriginalLoan - enteredOriginalLoan;
+  const bought = monthYear(purchaseYear, purchaseMonth);
 
   return (
     <>
       <div className="hero history-hero">
         <p className="range-headline">
-          {h.yearsOwned} years in this house, from {money(purchasePrice)} to{' '}
-          {money(currentValue)}.
+          {monthsToYears(Math.round(h.yearsOwned * 12))} in this house — {bought} to now,{' '}
+          {money(purchasePrice)} to {money(currentValue)}.
         </p>
 
         <div className="verdict-figures">
@@ -85,7 +90,7 @@ export function HistorySummary({
             <span className="v num">{money(h.totalExpenses)}</span>
           </div>
           <div className="line-item total-row">
-            <span className="k">Total out since {h.points[0].year}</span>
+            <span className="k">Total out since {monthYear(purchaseYear, purchaseMonth, true)}</span>
             <span className="v num">{money(h.totalOut)}</span>
           </div>
           <div className="line-item">

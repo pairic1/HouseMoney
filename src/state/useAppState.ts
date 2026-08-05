@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { DEFAULT_STATE, type AppState, type SavedHouse } from './defaults';
+import {
+  DEFAULT_STATE,
+  type AppState,
+  type ProjectionState,
+  type SavedHouse,
+} from './defaults';
 
 const STORAGE_KEY = 'housemoney.v1';
 
@@ -18,6 +23,21 @@ function migrateMoveYears(stored: unknown): number[] {
   return DEFAULT_STATE.projection.moveYears;
 }
 
+/**
+ * Full history used to be opt-in and is now the default. A stored state from
+ * before that change carries the old `false`, and a plain merge would pin
+ * everyone to it forever. `purchaseMonth` only exists from this version on, so
+ * its absence dates the save — that's the signal to take the new defaults.
+ */
+function migrateHistoryDefaults(stored: unknown): Partial<ProjectionState> {
+  const p = stored as Partial<ProjectionState> | undefined;
+  if (p && typeof p.purchaseMonth === 'number') return {};
+  return {
+    historyEnabled: DEFAULT_STATE.projection.historyEnabled,
+    totalsView: DEFAULT_STATE.projection.totalsView,
+  };
+}
+
 /** Merge stored values over defaults so a new field never arrives undefined. */
 function hydrate(raw: string | null): AppState {
   if (!raw) return DEFAULT_STATE;
@@ -33,6 +53,7 @@ function hydrate(raw: string | null): AppState {
       projection: {
         ...DEFAULT_STATE.projection,
         ...stored.projection,
+        ...migrateHistoryDefaults(stored.projection),
         moveYears: migrateMoveYears(stored.projection),
         expenses: stored.projection?.expenses ?? [],
       },

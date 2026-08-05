@@ -59,6 +59,8 @@ export interface CurrentLoan {
  */
 export interface HistoryInputs {
   purchaseYear: number;
+  /** 1–12. Buying in October rather than January is nearly a year of drift. */
+  purchaseMonth: number;
   purchasePrice: number;
   /** Original loan amount — sets the payment, and implies the down payment. */
   originalLoan: number;
@@ -103,6 +105,8 @@ export interface PlannedExpense {
 
 export interface ProjectionInputs {
   startYear: number;
+  /** 1–12, today's month. Only history needs it; forward windows run from now. */
+  startMonth?: number;
   horizonYears: number;
 
   current: HomeProfile;
@@ -257,11 +261,47 @@ const windowStartMonth = (year: number, epochYear: number) => (year - epochYear 
  * leaves the portfolio and arrives as equity, so day one nets out. Everything
  * after that reads as what owning this house has actually gained or cost.
  */
+/**
+ * Months of ownership behind you, or 0 when there's no history to walk. Both
+ * walks consult this, so a past-dated expense is charged exactly once — by
+ * history when there is one, by the forward run when there isn't.
+ */
+export function historyMonths(input: ProjectionInputs): number {
+  const h = input.history;
+  if (!h || h.purchasePrice <= 0) return 0;
+  const months =
+    (input.startYear - h.purchaseYear) * 12 + ((input.startMonth ?? 1) - h.purchaseMonth);
+  return months >= 1 ? months : 0;
+}
+
 export function runHistory(input: ProjectionInputs): HistoryResult | null {
   const h = input.history;
-  if (!h) return null;
-  const months = Math.round((input.startYear - h.purchaseYear) * 12);
-  if (months < 12 || h.purchasePrice <= 0) return null;
+  const months = historyMonths(input);
+  if (!h || months === 0) return null;
+
+  /**
+   * Year boundaries counted back from today, not forward from the purchase, so
+   * every window closes on the same month of the year the forward projection's
+   * windows do. The oldest bucket is the short one — the stub between buying
+   * and the first anniversary of today's date.
+   */
+  const boundaries: number[] = [];
+  for (let b = months; b >= 1; b -= 12) boundaries.unshift(b);
+
+  /** Calendar year the month `m` of ownership falls in. */
+  const calendarYear = (m: number) =>
+    h.purchaseYear + Math.floor((h.purchaseMonth - 1 + m) / 12);
+
+  // An expense fires at the start of whichever bucket carries its year.
+  const bucketStart = new Map<number, number>();
+  let prevBoundary = 0;
+  for (const b of boundaries) {
+    bucketStart.set(calendarYear(b), prevBoundary + 1);
+    prevBoundary = b;
+  }
+  const oldestYear = calendarYear(boundaries[0]);
+  const expenseMonthOf = (e: PlannedExpense) =>
+    bucketStart.get(e.year) ?? (e.year <= oldestYear ? 1 : null);
 
   const i = h.originalRatePct / 100 / 12;
   const payment = monthlyPI(h.originalLoan, h.originalRatePct, h.originalTermYears);
@@ -329,16 +369,16 @@ export function runHistory(input: ProjectionInputs): HistoryResult | null {
 
     for (const e of input.expenses) {
       if (e.appliesTo === 'next') continue;
-      if (windowStartMonth(e.year, h.purchaseYear) !== m) continue;
+      if (expenseMonthOf(e) !== m) continue;
       portfolio -= e.amount;
       totalExpenses += e.amount;
       yr.expenses += e.amount;
     }
 
-    if (m % 12 === 0) {
+    if (boundaries.includes(m)) {
       const value = valueAt(m);
       points.push({
-        year: h.purchaseYear + m / 12,
+        year: calendarYear(m),
         monthsElapsed: m - months,
         portfolio,
         homeValue: value,
@@ -492,10 +532,11 @@ export function runStrategy(
    * to put it in it would otherwise vanish, so it's charged immediately
    * instead; with one, it's already been counted and must not be charged twice.
    */
+  const hasHistory = historyMonths(input) > 0;
   const expenseMonth = (e: PlannedExpense) => {
     const m = windowStartMonth(e.year, input.startYear);
     if (m >= 1) return m;
-    return input.history ? -1 : 1;
+    return hasHistory ? -1 : 1;
   };
 
   for (let m = 1; m <= horizonMonths; m++) {

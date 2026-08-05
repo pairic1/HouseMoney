@@ -39,6 +39,17 @@ export function pct(n: number, digits = 2): string {
   return `${n.toFixed(digits)}%`;
 }
 
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+/** June 2019 — for a purchase date. `month` is 1–12. */
+export function monthYear(year: number, month: number, short = false): string {
+  const name = MONTHS[Math.min(11, Math.max(0, Math.round(month) - 1))];
+  return `${short ? name.slice(0, 3) : name} ${year}`;
+}
+
 /** 14 years, 2 months — for the PMI drop-off. */
 export function monthsToYears(months: number): string {
   const y = Math.floor(months / 12);

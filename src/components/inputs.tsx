@@ -85,6 +85,64 @@ export function NumberField({
   );
 }
 
+interface MonthFieldProps {
+  label: string;
+  sub?: string;
+  year: number;
+  /** 1–12. */
+  month: number;
+  onChange: (year: number, month: number) => void;
+  minYear?: number;
+  maxYear: number;
+  maxMonth: number;
+}
+
+/**
+ * A real month picker rather than two boxes — `type="month"` opens the native
+ * one on a phone, which is where this gets filled in.
+ */
+export function MonthField({
+  label,
+  sub,
+  year,
+  month,
+  onChange,
+  minYear = 1950,
+  maxYear,
+  maxMonth,
+}: MonthFieldProps) {
+  const id = useId();
+  const pad = (n: number) => String(n).padStart(2, '0');
+
+  const commit = (text: string) => {
+    const [y, m] = text.split('-').map(Number);
+    if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) return;
+    // Never let the purchase land in the future — there'd be no history to walk.
+    if (y > maxYear || (y === maxYear && m > maxMonth)) return onChange(maxYear, maxMonth);
+    if (y < minYear) return onChange(minYear, m);
+    onChange(y, m);
+  };
+
+  return (
+    <div className="field">
+      <label htmlFor={id}>
+        {label}
+        {sub && <span className="sub"> · {sub}</span>}
+      </label>
+      <div className="input-wrap">
+        <input
+          id={id}
+          type="month"
+          value={`${year}-${pad(month)}`}
+          min={`${minYear}-01`}
+          max={`${maxYear}-${pad(maxMonth)}`}
+          onChange={(e) => commit(e.target.value)}
+        />
+      </div>
+    </div>
+  );
+}
+
 interface SelectFieldProps<T extends string | number> {
   label: string;
   value: T;

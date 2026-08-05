@@ -1402,6 +1402,80 @@ table.afford tbody tr:last-child td {
   padding: 6px 0;
 }
 
+/* ---------- history since purchase ---------- */
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.section-head .eyebrow {
+  flex: 1;
+}
+
+.view-toggle {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.view-tab {
+  padding: 5px 11px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink-3);
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.view-tab:hover {
+  color: var(--ink);
+}
+
+.view-tab.is-active {
+  color: var(--ink);
+  background: var(--raised);
+  font-weight: 620;
+}
+
+.history-hero .fig-value {
+  font-size: 22px;
+}
+
+.callout-lead {
+  margin: 0 0 8px;
+  font-size: 13.5px;
+  color: var(--ink);
+}
+
+.callout-body {
+  margin: 0 0 8px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+/* Years already behind you: same for every plan, so they recede. */
+.year-table .is-past td,
+.year-table .is-past th {
+  color: var(--ink-3);
+}
+
+.year-table .is-first-forward td,
+.year-table .is-first-forward th {
+  border-top: 2px solid var(--hairline-strong);
+}
+
 /* ---------- move plans ---------- */
 
 .move-list {
@@ -1525,6 +1599,12 @@ table.afford tbody tr:last-child td {
 
 .expense-row.past-horizon {
   opacity: 0.45;
+}
+
+/* Already paid for — still counted, but not a decision you get to make again. */
+.expense-row.already-spent .expense-year {
+  color: var(--ink-2);
+  font-style: italic;
 }
 
 .expense-year {

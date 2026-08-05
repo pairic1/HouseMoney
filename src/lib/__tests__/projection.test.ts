@@ -3,6 +3,7 @@ import { monthlyPI, remainingBalance, type HouseCosts } from '../mortgage';
 import {
   runStrategy,
   runAllStrategies,
+  runHistory,
   crossoverYears,
   type ProjectionInputs,
   type HomeProfile,
@@ -379,6 +380,196 @@ describe('crossoverYears', () => {
   it('is empty against itself', () => {
     const stay = runStrategy({ kind: 'stay' }, baseInput());
     expect(crossoverYears(stay, stay)).toEqual([]);
+  });
+});
+
+describe('history since purchase', () => {
+  // Today's balance is what a $320k loan at 5% over 30 years actually leaves
+  // after eight years, so the backwards reconstruction has a true answer to hit.
+  const balanceToday = remainingBalance(320_000, 5, 30, 96);
+
+  const owned = (over: Partial<ProjectionInputs> = {}) =>
+    baseInput({
+      current: { ...freeHome(500_000), appreciationPct: 3 },
+      currentLoan: { balance: balanceToday, ratePct: 5, remainingYears: 22 },
+      history: {
+        purchaseYear: 2018,
+        purchasePrice: 350_000,
+        originalLoan: 320_000,
+        originalRatePct: 5,
+        originalTermYears: 30,
+      },
+      ...over,
+    });
+
+  it('walks from the purchase year to today', () => {
+    const h = runHistory(owned())!;
+    expect(h.yearsOwned).toBe(8);
+    expect(h.points).toHaveLength(9);
+    expect(h.points[0].year).toBe(2018);
+    expect(h.points[8].year).toBe(2026);
+    expect(h.points[8].monthsElapsed).toBe(0);
+  });
+
+  it('lands on today’s value and today’s balance exactly', () => {
+    const h = runHistory(owned())!;
+    const today = h.points[8];
+    expect(today.homeValue).toBeCloseTo(500_000, 6);
+    expect(today.loanBalance).toBeCloseTo(balanceToday, 6);
+  });
+
+  it('derives the appreciation actually achieved rather than assuming one', () => {
+    const h = runHistory(owned())!;
+    // 350k → 500k over eight years, compounded monthly.
+    const expected = (Math.pow(500_000 / 350_000, 1 / 8) - 1) * 100;
+    expect(h.impliedAppreciationPct).toBeCloseTo(expected, 1);
+    expect(h.impliedAppreciationPct).toBeGreaterThan(4);
+  });
+
+  it('anchors net position at zero on the day of purchase', () => {
+    const h = runHistory(owned())!;
+    expect(h.points[0].netPosition).toBeCloseTo(0, 6);
+  });
+
+  it('reconstructs the original loan from today’s balance', () => {
+    const h = runHistory(owned())!;
+    expect(h.reconstructedOriginalLoan).toBeCloseTo(320_000, 2);
+  });
+
+  it('reports a reconstruction that disagrees, rather than papering over it', () => {
+    // Paid down $40k extra, so amortizing back lands under the real loan — by
+    // $40k discounted over the eight years, not by $40k flat.
+    const h = runHistory(
+      owned({ currentLoan: { balance: balanceToday - 40_000, ratePct: 5, remainingYears: 22 } }),
+    )!;
+    const discounted = 40_000 / Math.pow(1 + 0.05 / 12, 96);
+    expect(h.reconstructedOriginalLoan).toBeCloseTo(320_000 - discounted, 2);
+    expect(h.reconstructedOriginalLoan).toBeLessThan(320_000 - 25_000);
+  });
+
+  it('returns nothing without inputs, or when the purchase is not in the past', () => {
+    expect(runHistory(baseInput())).toBeNull();
+    expect(runHistory(owned({ history: { ...owned().history!, purchaseYear: 2026 } }))).toBeNull();
+  });
+
+  describe('a past renovation', () => {
+    const reno = {
+      id: 'k1',
+      label: 'Kitchen',
+      year: 2022,
+      amount: 60_000,
+      appliesTo: 'current' as const,
+    };
+
+    it('is charged in the year it happened', () => {
+      const h = runHistory(owned({ expenses: [reno] }))!;
+      expect(h.totalExpenses).toBe(60_000);
+      const charged = h.points.filter((pt) => pt.expenses > 0 && pt.year !== 2019);
+      expect(charged).toHaveLength(1);
+      expect(charged[0].year).toBe(2022);
+    });
+
+    it('is not charged a second time by the forward projection', () => {
+      const withReno = owned({ expenses: [reno] });
+      expect(runStrategy({ kind: 'stay' }, withReno).totalExpenses).toBe(0);
+    });
+
+    it('still lands on today’s value, so what it bought is already counted', () => {
+      // The value path is anchored at both ends, so spending on the house does
+      // not need a recovery fraction — the climb to today already contains it.
+      const plain = runHistory(owned())!;
+      const renovated = runHistory(owned({ expenses: [reno] }))!;
+      expect(renovated.points[8].homeValue).toBeCloseTo(plain.points[8].homeValue, 6);
+      expect(renovated.totalOut - plain.totalOut).toBeCloseTo(60_000, 6);
+    });
+  });
+
+  it('counts the down payment as money out', () => {
+    const h = runHistory(owned())!;
+    expect(h.downPayment).toBeCloseTo(350_000 - h.reconstructedOriginalLoan, 6);
+    expect(h.totalOut).toBeCloseTo(
+      h.totalInterest +
+        h.totalPrincipal +
+        h.totalEscrow +
+        h.totalMaintenance +
+        h.totalExpenses +
+        h.downPayment,
+      4,
+    );
+  });
+
+  it('sums its year flows to its totals', () => {
+    const input = owned({ current: { ...freeHome(500_000), maintenancePct: 1 } });
+    const h = runHistory(input)!;
+    const sum = (f: (pt: (typeof h.points)[number]) => number) =>
+      h.points.reduce((a, pt) => a + f(pt), 0);
+    expect(sum((pt) => pt.interestPaid)).toBeCloseTo(h.totalInterest, 4);
+    expect(sum((pt) => pt.principalPaid)).toBeCloseTo(h.totalPrincipal, 4);
+    expect(sum((pt) => pt.cashOut)).toBeCloseTo(h.totalOut, 4);
+  });
+});
+
+/**
+ * The reason it is safe to show history at all: it is the same money for every
+ * plan, so it can move the totals without moving the decision.
+ */
+describe('history shifts every plan equally', () => {
+  const input = baseInput({
+    current: { ...freeHome(500_000), appreciationPct: 3, maintenancePct: 1 },
+    currentLoan: { balance: remainingBalance(320_000, 5, 30, 96), ratePct: 5, remainingYears: 22 },
+    next: { ...freeHome(650_000), appreciationPct: 3, maintenancePct: 1 },
+    moveYears: [5, 10],
+    commissionPct: 6,
+    investmentReturnPct: 5,
+    horizonYears: 30,
+    history: {
+      purchaseYear: 2018,
+      purchasePrice: 350_000,
+      originalLoan: 320_000,
+      originalRatePct: 5,
+      originalTermYears: 30,
+    },
+    expenses: [
+      { id: 'k1', label: 'Kitchen', year: 2022, amount: 60_000, appliesTo: 'current' as const },
+    ],
+  });
+
+  const ahead = runAllStrategies(input);
+  const h = runHistory(input)!;
+  const full = runAllStrategies(input, h.finalPortfolio);
+
+  it('moves every strategy by exactly the same amount at every year', () => {
+    for (let s = 0; s < ahead.length; s++) {
+      for (let k = 0; k < ahead[s].points.length; k++) {
+        const shift = full[s].points[k].netPosition - ahead[s].points[k].netPosition;
+        const reference = full[0].points[k].netPosition - ahead[0].points[k].netPosition;
+        expect(shift).toBeCloseTo(reference, 4);
+      }
+    }
+  });
+
+  it('leaves the gap between any two plans identical', () => {
+    for (let s = 1; s < ahead.length; s++) {
+      expect(full[s].finalNet - full[0].finalNet).toBeCloseTo(
+        ahead[s].finalNet - ahead[0].finalNet,
+        4,
+      );
+    }
+  });
+
+  it('leaves the crossover years identical', () => {
+    for (let s = 1; s < ahead.length; s++) {
+      const a = crossoverYears(ahead[0], ahead[s]);
+      const b = crossoverYears(full[0], full[s]);
+      expect(b).toHaveLength(a.length);
+      b.forEach((y, k) => expect(y).toBeCloseTo(a[k], 6));
+    }
+  });
+
+  it('leaves the forward cash totals identical', () => {
+    for (let s = 0; s < ahead.length; s++) {
+      expect(full[s].totalOut).toBeCloseTo(ahead[s].totalOut, 6);
+    }
   });
 });
 

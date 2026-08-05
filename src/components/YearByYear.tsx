@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import type { StrategyResult } from '../lib/projection';
+import type { HistoryResult, StrategyResult, YearPoint } from '../lib/projection';
 import { money } from '../lib/format';
 
 interface Props {
   results: StrategyResult[];
   classNames: string[];
+  /** Prepended when the breakdown is set to run from the purchase year. */
+  history?: HistoryResult | null;
 }
 
 /**
@@ -12,10 +14,12 @@ interface Props {
  * to wonder whether interest and principal are really being tracked year by
  * year. They are — this shows the schedule they come from.
  */
-export function YearByYear({ results, classNames }: Props) {
+export function YearByYear({ results, classNames, history }: Props) {
   const [pick, setPick] = useState(0);
   const r = results[Math.min(pick, results.length - 1)];
-  const rows = r.points.slice(1);
+  const past: YearPoint[] = history ? history.points.slice(1) : [];
+  const rows = [...past, ...r.points.slice(1)];
+  const firstForwardYear = r.points[1]?.year;
 
   return (
     <div className="year-detail">
@@ -50,7 +54,7 @@ export function YearByYear({ results, classNames }: Props) {
               <th scope="col">Tax, ins, HOA</th>
               <th scope="col">Upkeep</th>
               <th scope="col">One-offs</th>
-              <th scope="col">Moving</th>
+              <th scope="col">{past.length ? 'Moving, buying' : 'Moving'}</th>
               <th scope="col">Out that year</th>
               <th scope="col">Loan left</th>
               <th scope="col">Equity</th>
@@ -58,7 +62,18 @@ export function YearByYear({ results, classNames }: Props) {
           </thead>
           <tbody>
             {rows.map((pt) => (
-              <tr key={pt.year} className={pt.transactionCosts > 0 ? 'is-move-year' : undefined}>
+              <tr
+                key={pt.year}
+                className={
+                  [
+                    pt.transactionCosts > 0 ? 'is-move-year' : '',
+                    pt.monthsElapsed < 0 ? 'is-past' : '',
+                    pt.year === firstForwardYear && past.length ? 'is-first-forward' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ') || undefined
+                }
+              >
                 <th scope="row" className="num">
                   {pt.year}
                 </th>
@@ -82,6 +97,13 @@ export function YearByYear({ results, classNames }: Props) {
         each year, so interest falls and principal rises exactly the way an amortization schedule
         says it should. Highlighted rows are the year that plan moves — the loan resets there, which
         is why interest jumps back up. Property tax, insurance, HOA and PMI sit in one column.
+        {past.length > 0 && (
+          <>
+            {' '}
+            Dimmed rows are years already behind you; they're the same for every plan, and the rule
+            marks today. Your down payment sits in the one-offs column of the first year.
+          </>
+        )}
       </p>
     </div>
   );

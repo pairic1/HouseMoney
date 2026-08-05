@@ -48,6 +48,50 @@ export interface CurrentLoan {
   remainingYears: number;
 }
 
+/**
+ * What the house you're in has already cost, from the day you bought it.
+ *
+ * This is the piece that lets a past renovation stop being pure cost. The home
+ * value walks from `purchasePrice` to today's value along a geometric path, so
+ * whatever a renovation actually added is already sitting inside that climb —
+ * the spend is charged and the value it bought is credited, without the model
+ * having to guess a recovery fraction.
+ */
+export interface HistoryInputs {
+  purchaseYear: number;
+  purchasePrice: number;
+  /** Original loan amount — sets the payment, and implies the down payment. */
+  originalLoan: number;
+  originalRatePct: number;
+  originalTermYears: number;
+}
+
+export interface HistoryResult {
+  yearsOwned: number;
+  points: YearPoint[];
+  /** What the value path actually did, purchase to today — not an assumption. */
+  impliedAppreciationPct: number;
+  /**
+   * The loan at purchase, reconstructed by amortizing backwards from today's
+   * balance. Compare against what was entered: a gap means extra principal, a
+   * refinance, or terms remembered slightly wrong.
+   */
+  reconstructedOriginalLoan: number;
+  downPayment: number;
+  totalInterest: number;
+  totalPrincipal: number;
+  totalEscrow: number;
+  totalMaintenance: number;
+  totalExpenses: number;
+  /** Every dollar this house has taken, down payment included. */
+  totalOut: number;
+  /** Cumulative net cost carried into today — the forward runs start here. */
+  finalPortfolio: number;
+  equityToday: number;
+  /** Net position today, anchored at zero on the day of purchase. */
+  netSincePurchase: number;
+}
+
 export interface PlannedExpense {
   id: string;
   label: string;
@@ -79,6 +123,9 @@ export interface ProjectionInputs {
   investmentReturnPct: number;
   /** Drift on insurance and HOA. Property tax rides the home's value instead. */
   costInflationPct: number;
+
+  /** Set to also account for what this house has already cost. */
+  history?: HistoryInputs;
 
   commissionPct: number;
   sellerClosingPct: number;
@@ -183,7 +230,159 @@ function monthlyCarryingCost(
   };
 }
 
-export function runStrategy(spec: StrategySpec, input: ProjectionInputs): StrategyResult {
+/** Blank per-year flow accumulator, drained into each YearPoint. */
+const blankFlows = () => ({
+  interestPaid: 0,
+  principalPaid: 0,
+  escrow: 0,
+  maintenance: 0,
+  expenses: 0,
+  transactionCosts: 0,
+});
+
+const sumFlows = (f: ReturnType<typeof blankFlows>) =>
+  f.interestPaid + f.principalPaid + f.escrow + f.maintenance + f.expenses + f.transactionCosts;
+
+/**
+ * Months from the start of `year`'s window, under the convention that a year
+ * point is stamped with the year its twelve-month window *ends*.
+ */
+const windowStartMonth = (year: number, epochYear: number) => (year - epochYear - 1) * 12 + 1;
+
+/**
+ * Walk from the purchase date up to today. Returns null when there's no history
+ * to walk — no inputs, or a purchase date that isn't in the past.
+ *
+ * Net position is anchored at zero on the day of purchase: the down payment
+ * leaves the portfolio and arrives as equity, so day one nets out. Everything
+ * after that reads as what owning this house has actually gained or cost.
+ */
+export function runHistory(input: ProjectionInputs): HistoryResult | null {
+  const h = input.history;
+  if (!h) return null;
+  const months = Math.round((input.startYear - h.purchaseYear) * 12);
+  if (months < 12 || h.purchasePrice <= 0) return null;
+
+  const i = h.originalRatePct / 100 / 12;
+  const payment = monthlyPI(h.originalLoan, h.originalRatePct, h.originalTermYears);
+
+  // Reconstruct the balance path by amortizing backwards from today's balance —
+  // the figure on a statement, and so the one worth trusting. Running forwards
+  // from the original loan instead would drift and leave a step at today.
+  const balances = new Array<number>(months + 1);
+  balances[months] = input.currentLoan.balance;
+  for (let m = months; m >= 1; m--) {
+    balances[m - 1] = i === 0 ? balances[m] + payment : (balances[m] + payment) / (1 + i);
+  }
+
+  const growth = input.current.value / h.purchasePrice;
+  const impliedAppreciationPct = (Math.pow(growth, 12 / months) - 1) * 100;
+
+  const downPayment = Math.max(0, h.purchasePrice - balances[0]);
+  const investMonthly = input.investmentReturnPct / 100 / 12;
+
+  let portfolio = -downPayment;
+  let totalInterest = 0;
+  let totalPrincipal = 0;
+  let totalEscrow = 0;
+  let totalMaintenance = 0;
+  let totalExpenses = 0;
+
+  const valueAt = (m: number) => h.purchasePrice * Math.pow(growth, m / months);
+
+  const points: YearPoint[] = [
+    {
+      year: h.purchaseYear,
+      monthsElapsed: -months,
+      portfolio,
+      homeValue: h.purchasePrice,
+      loanBalance: balances[0],
+      equity: h.purchasePrice - balances[0],
+      netPosition: portfolio + h.purchasePrice - balances[0],
+      ...blankFlows(),
+      cashOut: 0,
+    },
+  ];
+  // The down payment belongs to year one of ownership, not to nothing.
+  let yr = blankFlows();
+  yr.expenses = downPayment;
+
+  for (let m = 1; m <= months; m++) {
+    portfolio *= 1 + investMonthly;
+
+    const interest = balances[m - 1] * i;
+    const principalPaid = balances[m - 1] - balances[m];
+    portfolio -= interest + principalPaid;
+    totalInterest += interest;
+    totalPrincipal += principalPaid;
+    yr.interestPaid += interest;
+    yr.principalPaid += principalPaid;
+
+    // Today's entered bills are today's; back then they were smaller.
+    const inflationFactor = Math.pow(1 + input.costInflationPct / 100, -(months - m) / 12);
+    const carry = monthlyCarryingCost(valueAt(m), input.current, inflationFactor);
+    portfolio -= carry.tax + carry.insurance + carry.hoa + carry.maintenance;
+    totalEscrow += carry.tax + carry.insurance + carry.hoa;
+    totalMaintenance += carry.maintenance;
+    yr.escrow += carry.tax + carry.insurance + carry.hoa;
+    yr.maintenance += carry.maintenance;
+
+    for (const e of input.expenses) {
+      if (e.appliesTo === 'next') continue;
+      if (windowStartMonth(e.year, h.purchaseYear) !== m) continue;
+      portfolio -= e.amount;
+      totalExpenses += e.amount;
+      yr.expenses += e.amount;
+    }
+
+    if (m % 12 === 0) {
+      const value = valueAt(m);
+      points.push({
+        year: h.purchaseYear + m / 12,
+        monthsElapsed: m - months,
+        portfolio,
+        homeValue: value,
+        loanBalance: balances[m],
+        equity: value - balances[m],
+        netPosition: portfolio + value - balances[m],
+        ...yr,
+        cashOut: sumFlows(yr),
+      });
+      yr = blankFlows();
+    }
+  }
+
+  const last = points[points.length - 1];
+  return {
+    yearsOwned: months / 12,
+    points,
+    impliedAppreciationPct,
+    reconstructedOriginalLoan: balances[0],
+    downPayment,
+    totalInterest,
+    totalPrincipal,
+    totalEscrow,
+    totalMaintenance,
+    totalExpenses,
+    totalOut:
+      totalInterest + totalPrincipal + totalEscrow + totalMaintenance + totalExpenses + downPayment,
+    finalPortfolio: last.portfolio,
+    equityToday: last.equity,
+    netSincePurchase: last.netPosition,
+  };
+}
+
+/**
+ * `startingPortfolio` carries the cost of the years already spent in this house.
+ * It's the same figure for every strategy — past money is spent no matter what
+ * you do next — so it shifts all the curves together and leaves every gap
+ * between them untouched.
+ */
+export function runStrategy(
+  spec: StrategySpec,
+  input: ProjectionInputs,
+  startingPortfolio = 0,
+): StrategyResult {
   const { kind } = spec;
   const horizonMonths = Math.max(1, Math.round(input.horizonYears * 12));
   const moveMonth =
@@ -196,7 +395,7 @@ export function runStrategy(spec: StrategySpec, input: ProjectionInputs): Strate
   const investMonthly = input.investmentReturnPct / 100 / 12;
 
   // Live state
-  let portfolio = 0;
+  let portfolio = startingPortfolio;
   let owning: 'current' | 'next' = 'current';
   let homeValue = input.current.value;
   let balance = input.currentLoan.balance;
@@ -264,15 +463,7 @@ export function runStrategy(spec: StrategySpec, input: ProjectionInputs): Strate
   }
 
   // Flows during the year currently being walked, drained into each YearPoint.
-  const blank = () => ({
-    interestPaid: 0,
-    principalPaid: 0,
-    escrow: 0,
-    maintenance: 0,
-    expenses: 0,
-    transactionCosts: 0,
-  });
-  let yr = blank();
+  let yr = blankFlows();
 
   if (moveMonth === 0) doMove(0);
 
@@ -285,7 +476,7 @@ export function runStrategy(spec: StrategySpec, input: ProjectionInputs): Strate
       loanBalance: balance,
       equity: homeValue - balance,
       netPosition: portfolio + homeValue - balance,
-      ...blank(),
+      ...blankFlows(),
       cashOut: 0,
     },
   ];
@@ -295,11 +486,17 @@ export function runStrategy(spec: StrategySpec, input: ProjectionInputs): Strate
   /**
    * Year points are stamped with the year the window *ends* — `points[1]` is
    * startYear + 1 — so an expense has to fire twelve months earlier than the
-   * naive offset to land in the row bearing its own year. Anything dated this
-   * year or already past is charged immediately rather than silently dropped.
+   * naive offset to land in the row bearing its own year.
+   *
+   * A date already in the past belongs to the history walk. Without a history
+   * to put it in it would otherwise vanish, so it's charged immediately
+   * instead; with one, it's already been counted and must not be charged twice.
    */
-  const expenseMonth = (e: PlannedExpense) =>
-    Math.max(1, (e.year - input.startYear - 1) * 12 + 1);
+  const expenseMonth = (e: PlannedExpense) => {
+    const m = windowStartMonth(e.year, input.startYear);
+    if (m >= 1) return m;
+    return input.history ? -1 : 1;
+  };
 
   for (let m = 1; m <= horizonMonths; m++) {
     if (moveMonth !== null && moveMonth === m) {
@@ -358,15 +555,9 @@ export function runStrategy(spec: StrategySpec, input: ProjectionInputs): Strate
         equity: homeValue - balance,
         netPosition: portfolio + homeValue - balance,
         ...yr,
-        cashOut:
-          yr.interestPaid +
-          yr.principalPaid +
-          yr.escrow +
-          yr.maintenance +
-          yr.expenses +
-          yr.transactionCosts,
+        cashOut: sumFlows(yr),
       });
-      yr = blank();
+      yr = blankFlows();
     }
   }
 
@@ -399,14 +590,19 @@ export function runStrategy(spec: StrategySpec, input: ProjectionInputs): Strate
  * then selling now, then one plan per move year in chronological order, so the
  * lines read left to right in the same order they leave.
  */
-export function runAllStrategies(input: ProjectionInputs): StrategyResult[] {
+export function runAllStrategies(
+  input: ProjectionInputs,
+  startingPortfolio = 0,
+): StrategyResult[] {
   const moveYears = [...new Set(input.moveYears)]
     .filter((y) => y > 0 && y <= input.horizonYears)
     .sort((a, b) => a - b);
   return [
-    runStrategy({ kind: 'stay' }, input),
-    runStrategy({ kind: 'sellNow' }, input),
-    ...moveYears.map((y) => runStrategy({ kind: 'stayThenMove', moveInYears: y }, input)),
+    runStrategy({ kind: 'stay' }, input, startingPortfolio),
+    runStrategy({ kind: 'sellNow' }, input, startingPortfolio),
+    ...moveYears.map((y) =>
+      runStrategy({ kind: 'stayThenMove', moveInYears: y }, input, startingPortfolio),
+    ),
   ];
 }
 

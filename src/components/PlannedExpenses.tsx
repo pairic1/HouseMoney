@@ -6,6 +6,8 @@ interface Props {
   expenses: PlannedExpense[];
   startYear: number;
   horizonYears: number;
+  /** The purchase year, when history is on — the earliest date worth entering. */
+  historyFromYear?: number | null;
   onChange: (next: PlannedExpense[]) => void;
 }
 
@@ -17,7 +19,13 @@ const WHERE: { value: PropertyRef; label: string }[] = [
 
 const whereLabel = (r: PropertyRef) => WHERE.find((w) => w.value === r)?.label ?? r;
 
-export function PlannedExpenses({ expenses, startYear, horizonYears, onChange }: Props) {
+export function PlannedExpenses({
+  expenses,
+  startYear,
+  horizonYears,
+  historyFromYear,
+  onChange,
+}: Props) {
   const [label, setLabel] = useState('');
   const [year, setYear] = useState(String(startYear + 3));
   const [amount, setAmount] = useState('');
@@ -49,7 +57,16 @@ export function PlannedExpenses({ expenses, startYear, horizonYears, onChange }:
       {sorted.length > 0 && (
         <ul className="expense-list">
           {sorted.map((e) => (
-            <li key={e.id} className={e.year > endYear ? 'expense-row past-horizon' : 'expense-row'}>
+            <li
+              key={e.id}
+              className={[
+                'expense-row',
+                e.year > endYear ? 'past-horizon' : '',
+                e.year <= startYear ? 'already-spent' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+            >
               <span className="expense-year num">{e.year}</span>
               <span className="expense-label">{e.label}</span>
               <span className="expense-where">{whereLabel(e.appliesTo)}</span>
@@ -138,6 +155,22 @@ export function PlannedExpenses({ expenses, startYear, horizonYears, onChange }:
         due in {startYear + 3} never hits a plan that sold in {startYear + 1}. That asymmetry is
         often the whole argument.
       </p>
+
+      {historyFromYear ? (
+        <p className="hint">
+          Dates back to {historyFromYear} work too. A renovation you've already done is charged in
+          the year you did it, and whatever it added to the house is already inside the climb to
+          today's value — so it counts as cost against value, not pure cost.
+        </p>
+      ) : (
+        sorted.some((e) => e.year <= startYear) && (
+          <p className="hint">
+            Something here is dated {startYear} or earlier. Without the purchase history switched
+            on there's no past to put it in, so it's being charged right now instead — turn history
+            on in the settings to have it land in the year it actually happened.
+          </p>
+        )
+      )}
     </div>
   );
 }

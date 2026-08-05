@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import {
   crossoverYears,
   runAllStrategies,
+  runHistory,
   type ProjectionInputs,
   type StrategyResult,
 } from '../lib/projection';
@@ -11,6 +12,7 @@ import { StrategyChart } from '../components/StrategyChart';
 import { PlannedExpenses } from '../components/PlannedExpenses';
 import { MovePlans } from '../components/MovePlans';
 import { YearByYear } from '../components/YearByYear';
+import { HistorySummary } from '../components/HistorySummary';
 import { NumberField, SelectField } from '../components/inputs';
 
 /**
@@ -78,6 +80,15 @@ export function Compare() {
       moveYears: p.moveYears,
       investmentReturnPct: p.investmentReturnPct,
       costInflationPct: p.costInflationPct,
+      history: p.historyEnabled
+        ? {
+            purchaseYear: p.purchaseYear,
+            purchasePrice: p.purchasePrice,
+            originalLoan: p.originalLoan,
+            originalRatePct: p.originalRatePct,
+            originalTermYears: p.originalTermYears,
+          }
+        : undefined,
       commissionPct: state.sale.commissionPct,
       sellerClosingPct: state.sale.sellerClosingPct,
       buyerClosingPct: state.terms.buyerClosingPct,
@@ -88,8 +99,28 @@ export function Compare() {
     [p, state, startYear],
   );
 
-  const results = useMemo(() => runAllStrategies(input), [input]);
+  const history = useMemo(() => runHistory(input), [input]);
+  /**
+   * History is the same money for every plan, so it enters as one shared
+   * starting balance. Every curve moves together and no gap between them
+   * changes — which is exactly why it's safe to fold in.
+   */
+  const results = useMemo(
+    () => runAllStrategies(input, history?.finalPortfolio ?? 0),
+    [input, history],
+  );
   const [stay, ...others] = results;
+
+  const showHistory = history !== null;
+  const fullTotals = showHistory && p.totalsView === 'purchase';
+  /** How far counting history moves every plan's net position at the horizon. */
+  const historyShift = useMemo(() => {
+    if (!history) return 0;
+    const withoutHistory = runAllStrategies(input, 0)[0];
+    return stay.finalNet - withoutHistory.finalNet;
+  }, [history, input, stay]);
+
+  const withHistory = (base: number, past: number) => (fullTotals ? base + past : base);
 
   const crossings = useMemo(
     () =>
@@ -263,41 +294,106 @@ export function Compare() {
         </div>
       </section>
 
+      {showHistory && (
+        <section className="section">
+          <p className="eyebrow">Since you bought this house</p>
+          <HistorySummary
+            history={history}
+            purchasePrice={p.purchasePrice}
+            currentValue={p.currentValue}
+            enteredOriginalLoan={p.originalLoan}
+            shift={historyShift}
+            horizonYears={p.horizonYears}
+          />
+        </section>
+      )}
+
       <section className="section">
-        <p className="eyebrow">Where the money goes</p>
+        <div className="section-head">
+          <p className="eyebrow">Where the money goes</p>
+          {showHistory && (
+            <div className="view-toggle" role="group" aria-label="Period to total up">
+              <button
+                type="button"
+                className={`view-tab${fullTotals ? '' : ' is-active'}`}
+                aria-pressed={!fullTotals}
+                onClick={() => setProjection({ totalsView: 'today' })}
+              >
+                From today
+              </button>
+              <button
+                type="button"
+                className={`view-tab${fullTotals ? ' is-active' : ''}`}
+                aria-pressed={fullTotals}
+                onClick={() => setProjection({ totalsView: 'purchase' })}
+              >
+                Since {p.purchaseYear}
+              </button>
+            </div>
+          )}
+        </div>
+        {fullTotals && (
+          <p className="grid-lead">
+            Every card now carries the {money(history!.totalOut)} this house has already taken, on
+            top of what's still ahead. The same amount lands on all of them, so the gaps — and the
+            answer — are untouched.
+          </p>
+        )}
         <div className="strategy-cards">
           {results.map((r, i) => (
             <div className="strategy-card" key={r.id}>
               <h3>
                 <span className={`readout-swatch ${SERIES_CLASS[i] ?? ''}`} /> {r.label}
               </h3>
+              {fullTotals && (
+                <div className="line-item">
+                  <span className="k">Down payment, {p.purchaseYear}</span>
+                  <span className="v num">{money(history!.downPayment)}</span>
+                </div>
+              )}
               <div className="line-item">
                 <span className="k">Mortgage interest</span>
-                <span className="v num">{money(r.totalInterest)}</span>
+                <span className="v num">
+                  {money(withHistory(r.totalInterest, history?.totalInterest ?? 0))}
+                </span>
               </div>
               <div className="line-item">
                 <span className="k">Principal paid</span>
-                <span className="v num">{money(r.totalPrincipal)}</span>
+                <span className="v num">
+                  {money(withHistory(r.totalPrincipal, history?.totalPrincipal ?? 0))}
+                </span>
               </div>
               <div className="line-item">
                 <span className="k">Tax, insurance, HOA</span>
-                <span className="v num">{money(r.totalEscrow)}</span>
+                <span className="v num">
+                  {money(withHistory(r.totalEscrow, history?.totalEscrow ?? 0))}
+                </span>
               </div>
               <div className="line-item">
                 <span className="k">Upkeep</span>
-                <span className="v num">{money(r.totalMaintenance)}</span>
+                <span className="v num">
+                  {money(withHistory(r.totalMaintenance, history?.totalMaintenance ?? 0))}
+                </span>
               </div>
               <div className="line-item">
-                <span className="k">Planned expenses</span>
-                <span className="v num">{money(r.totalExpenses)}</span>
+                <span className="k">Projects and repairs</span>
+                <span className="v num">
+                  {money(withHistory(r.totalExpenses, history?.totalExpenses ?? 0))}
+                </span>
               </div>
               <div className={`line-item${r.totalTransactionCosts > 0 ? ' negative' : ''}`}>
                 <span className="k">Commission &amp; closing</span>
                 <span className="v num">{money(r.totalTransactionCosts)}</span>
               </div>
               <div className="line-item total-row">
-                <span className="k">Total out over {p.horizonYears} years</span>
-                <span className="v num">{money(r.totalOut)}</span>
+                <span className="k">
+                  {fullTotals
+                    ? `Total out since ${p.purchaseYear}`
+                    : `Total out over ${p.horizonYears} years`}
+                </span>
+                <span className="v num">
+                  {money(withHistory(r.totalOut, history?.totalOut ?? 0))}
+                </span>
               </div>
               <div className="line-item">
                 <span className="k">Equity at year {p.horizonYears}</span>
@@ -311,7 +407,11 @@ export function Compare() {
       <section className="section">
         <p className="eyebrow">Year by year</p>
         <div className="panel" style={{ padding: '16px 18px 18px' }}>
-          <YearByYear results={results} classNames={SERIES_CLASS} />
+          <YearByYear
+            results={results}
+            classNames={SERIES_CLASS}
+            history={fullTotals ? history : null}
+          />
         </div>
       </section>
 
@@ -322,6 +422,7 @@ export function Compare() {
             expenses={p.expenses}
             startYear={startYear}
             horizonYears={p.horizonYears}
+            historyFromYear={showHistory ? p.purchaseYear : null}
             onChange={(expenses) => setProjection({ expenses })}
           />
         </div>
@@ -460,6 +561,82 @@ export function Compare() {
                 overstates what you actually spend. Switch it to a flat budget if you know your own
                 number — land, a well, a long driveway don't get pricier just because the house
                 appraises higher.
+              </p>
+            </div>
+
+            <div className="group">
+              <p className="eyebrow">What it has cost you so far</p>
+              <div className="field-grid">
+                <SelectField
+                  label="Count the years you've owned it"
+                  value={p.historyEnabled ? 'yes' : 'no'}
+                  options={[
+                    { value: 'no', label: 'No — start from today' },
+                    { value: 'yes', label: 'Yes — start from purchase' },
+                  ]}
+                  onChange={(v) => setProjection({ historyEnabled: v === 'yes' })}
+                />
+                {p.historyEnabled && (
+                  <>
+                    <NumberField
+                      label="Year you bought"
+                      value={p.purchaseYear}
+                      onChange={(n) => setProjection({ purchaseYear: n })}
+                      min={1950}
+                      max={startYear}
+                    />
+                    <NumberField
+                      label="What you paid"
+                      value={p.purchasePrice}
+                      onChange={(n) => setProjection({ purchasePrice: n })}
+                      prefix="$"
+                      grouped
+                      min={0}
+                    />
+                    <NumberField
+                      label="Original loan"
+                      sub="the rest was your down payment"
+                      value={p.originalLoan}
+                      onChange={(n) => setProjection({ originalLoan: n })}
+                      prefix="$"
+                      grouped
+                      min={0}
+                    />
+                    <NumberField
+                      label="Rate you got"
+                      value={p.originalRatePct}
+                      onChange={(n) => setProjection({ originalRatePct: n })}
+                      suffix="%"
+                      min={0}
+                      max={20}
+                    />
+                    <NumberField
+                      label="Original term"
+                      sub="years"
+                      value={p.originalTermYears}
+                      onChange={(n) => setProjection({ originalTermYears: n })}
+                      min={1}
+                      max={40}
+                    />
+                  </>
+                )}
+              </div>
+              <p className="hint">
+                {p.historyEnabled ? (
+                  <>
+                    Date a repair or renovation to a past year and it lands here instead of ahead of
+                    you. The home's value walks from what you paid to what it's worth now, so
+                    whatever a project actually added is already in that climb — the spend is
+                    charged, the value is credited, and neither is guessed at.
+                  </>
+                ) : (
+                  <>
+                    Off by default: past money can't change what you should do next, so the decision
+                    doesn't need it. Turn it on to see what this house has actually taken — and to
+                    let a renovation you've already paid for count against the value it bought,
+                    rather than as pure cost.
+                  </>
+                )}
               </p>
             </div>
 
@@ -639,9 +816,12 @@ export function Compare() {
         <p>
           Mortgage interest and principal are recomputed every month off the live balance, for the
           current loan and any loan that replaces it — the year-by-year table is that schedule.
-          Commission, seller closing, and buyer closing are charged on every move. Sunk costs from
-          houses you've already owned are deliberately excluded: they can't change what you should
-          do now.
+          Commission, seller closing, and buyer closing are charged on every move.
+        </p>
+        <p>
+          {showHistory
+            ? `Years you've already spent in this house are counted, and they land on every plan alike — they change the total, never the ranking. Houses you owned before this one stay out: that money is gone whichever way you go.`
+            : `Costs from before today are left out. Turn on the purchase history in the settings to see them; they can't change which plan wins, but they can tell you what a renovation was actually worth.`}
         </p>
       </footer>
     </>

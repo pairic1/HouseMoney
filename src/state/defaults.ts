@@ -59,6 +59,16 @@ export interface ProjectionState {
   currentRatePct: number;
   currentRemainingYears: number;
 
+  /** What this house has already cost, from the day you bought it. */
+  historyEnabled: boolean;
+  purchaseYear: number;
+  purchasePrice: number;
+  originalLoan: number;
+  originalRatePct: number;
+  originalTermYears: number;
+  /** Whether the cost breakdowns count the years already spent here. */
+  totalsView: 'today' | 'purchase';
+
   /** The house you'd move to, priced in today's dollars. */
   nextAppreciationPct: number;
   nextMaintenanceMode: TaxMode;
@@ -132,6 +142,14 @@ export const DEFAULT_STATE: AppState = {
     currentBalance: 500_000,
     currentRatePct: 6,
     currentRemainingYears: 28,
+
+    historyEnabled: false,
+    purchaseYear: 2019,
+    purchasePrice: 450_000,
+    originalLoan: 400_000,
+    originalRatePct: 4.5,
+    originalTermYears: 30,
+    totalsView: 'today',
 
     nextAppreciationPct: 3,
     nextMaintenanceMode: 'percent',

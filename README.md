@@ -60,6 +60,25 @@ house. Percent-of-value upkeep climbs as the house does, which overstates the bi
 house — land and outbuildings don't get pricier because the house appraises higher. Flat figures
 still drift with cost inflation; set that to 0% to freeze them exactly.
 
+### Since you bought
+
+Optionally the whole picture, from the day you bought the house you're in. The home's value walks
+from what you paid to what it's worth today, and today's mortgage balance is amortized *backwards*
+to reconstruct the loan you started with — so the join at today is exact, and the reconstruction
+doubles as a check on the original terms.
+
+This is what stops a **past** renovation being pure cost. The spend is charged in the year it
+happened, and whatever it added to the house is already inside the climb to today's value. Both
+ends of the value path are pinned, so no recovery fraction has to be guessed and nothing gets
+double-counted. A renovation you *haven't* done yet is still pure cost — the forward appreciation
+rate is where that belongs.
+
+History enters as one shared starting balance, identical for every plan, because past money is
+spent no matter what you do next. Every curve moves together and no gap between them changes:
+which plan wins, by how much, and the years the lines cross are all provably untouched. It changes
+the total, not the decision — which is why the chart stays measured from today, and why the cost
+breakdowns carry a *From today / Since &lt;year&gt;* switch instead of quietly picking one.
+
 ## Your numbers stay yours
 
 Everything you enter lives in your browser's `localStorage` and goes nowhere else. There's no
